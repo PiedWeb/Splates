@@ -1,0 +1,7 @@
+build
+composer.lock
+vendor
+doc/public
+doc/data/versions.json
+.generated
+.phpunit.result.cache
