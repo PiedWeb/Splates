@@ -6,3 +6,4 @@ doc/data/versions.json
 .generated
 .phpunit.result.cache
 .php-cs-fixer.cache
+Tmp.php

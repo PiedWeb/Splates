@@ -70,6 +70,9 @@ final class RectorizeTemplate extends AbstractRector
         $paramsForConstructor = [];
         $docBlockForConstructor = [];
         $methodDocBlock = $displayMethod->getDocComment()?->getText() ?? '';
+        if (str_contains($methodDocBlock, '@phpstan-ignore-next-line')) {
+            $docBlockForConstructor[] = '@phpstan-ignore-next-line';
+        }
 
         foreach ($displayMethod->params as $parameter) {
             if (in_array($this->getName($parameter), self::PARAMETER_NAMES_TO_NOT_ADD, true)) {
