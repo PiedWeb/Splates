@@ -29,13 +29,13 @@ use Rector\ValueObject\MethodName;
  */
 final class RectorizeTemplate extends AbstractRector
 {
-    public const CLASS_TO_NOT_ADD_IN_CONSTRUCTOR = [
+    public const array CLASS_TO_NOT_ADD_IN_CONSTRUCTOR = [
         Template::class,
         TemplateClass::class,
         DoNotAddItInConstructorInterface::class,
     ];
 
-    public const PARAMETER_NAMES_TO_NOT_ADD = ['f', 'e'];
+    public const array PARAMETER_NAMES_TO_NOT_ADD = ['f', 'e'];
 
     public function __construct(
         private readonly ParamTypeResolver $paramTypeResolver,
@@ -61,7 +61,7 @@ final class RectorizeTemplate extends AbstractRector
         }
 
         $displayMethod = $node->getMethod('display');
-        if ($displayMethod === null || $displayMethod->params === []) {
+        if (! $displayMethod instanceof ClassMethod || $displayMethod->params === []) {
             $this->removeConstructor($node);
 
             return null;
@@ -105,6 +105,7 @@ final class RectorizeTemplate extends AbstractRector
         if ($paramsForConstructor === $constructor?->params || $docBlockConstructor === $newDocBlockConstructor) { // TODO compare docblock
             return null;
         }
+
         $newConstructor = new ClassMethod(MethodName::CONSTRUCT, [
             'flags' => Modifiers::PUBLIC,
             'params' => $paramsForConstructor,
