@@ -20,87 +20,63 @@ use PiedWeb\Splates\Template\DoNotAddItInConstructorInterface;
 use PiedWeb\Splates\Template\Template;
 use PiedWeb\Splates\Template\TemplateClass;
 use PiedWeb\Splates\Template\TemplateClassInterface;
+use Rector\NodeTypeResolver\NodeTypeResolver;
 use Rector\NodeTypeResolver\NodeTypeResolver\ParamTypeResolver;
 use Rector\PhpParser\Printer\BetterStandardPrinter;
 use Rector\Rector\AbstractRector;
 use Rector\StaticTypeMapper\ValueObject\Type\FullyQualifiedObjectType;
 use Rector\ValueObject\MethodName;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 
 /**
- * @see \Rector\Tests\DeadCode\Rector\ClassMethod\RemoveUnusedConstructorParamRector\RemoveUnusedConstructorParamRectorTest
+ * Rewrite
+ * `final class SomeTemplate { public function display(string $name, Template $t): void { ... } }`
+ * in
+ * `final class SomeTemplate { public function display(string $name, Template $t): void { ... } public function __construct(public string $name) {} }`
  */
 final class RectorizeTemplate extends AbstractRector
 {
-    public const array CLASS_TO_NOT_ADD_IN_CONSTRUCTOR = [Template::class, TemplateClass::class, DoNotAddItInConstructorInterface::class];
+    public const CLASS_TO_NOT_ADD_IN_CONSTRUCTOR = [
+        Template::class,
+        TemplateClass::class,
+        DoNotAddItInConstructorInterface::class,
+    ];
 
-    public const array PARAMETER_NAMES_TO_NOT_ADD = ['f', 'e'];
+    public const PARAMETER_NAMES_TO_NOT_ADD = ['f', 'e'];
 
     public function __construct(
-        private readonly ParamTypeResolver $paramTypeResolver
+        private readonly ParamTypeResolver $paramTypeResolver,
+        protected NodeTypeResolver $nodeTypeResolver,
+        private readonly BetterStandardPrinter $betterStandardPrinter
     ) {
     }
 
-    public function getRuleDefinition(): RuleDefinition
-    {
-        return new RuleDefinition('Duplicate diplay to constructor except Template', [new CodeSample(
-            <<<'CODE_SAMPLE'
-final class SomeTemplate
-{
-    public function display(string $name, Template $t): void
-    {
-        // ...
-    }
-}
-CODE_SAMPLE
-            ,
-            <<<'CODE_SAMPLE'
-final class SomeClass
-{
-    public function display(string $name, Template $t): void
-    {
-        // ...
-    }
-
-    public function __construct(public string $name)
-    {
-    }
-}
-CODE_SAMPLE
-        )]);
-    }
-
-    /**
-     * @return array<class-string<Node>>
-     */
     public function getNodeTypes(): array
     {
         return [Class_::class];
     }
 
-    /**
-     * @param Class_ $node
-     */
     public function refactor(Node $node): ?Node
     {
+        if (! $node instanceof Class_) {
+            return null;
+        }
+
         $implementedInterfaces = array_map(static fn (Name $interface): string => $interface->toString(), $node->implements);
+
         if (! \in_array(TemplateClassInterface::class, $implementedInterfaces, true)) {
             return null;
         }
 
         $displayMethod = $node->getMethod('display');
-        if (null === $displayMethod) {
+        if ($displayMethod === null || $displayMethod->params === []) {
+            $this->removeConstructor($node);
             return null;
-        }
-
-        if ([] === $displayMethod->params) {
-            return $this->removeConstructor($node);
         }
 
         $paramsForConstructor = [];
         $docBlockForConstructor = [];
         $methodDocBlock = $displayMethod->getDocComment()?->getText() ?? '';
+
         foreach ($displayMethod->params as $parameter) {
             if (in_array($this->getName($parameter), self::PARAMETER_NAMES_TO_NOT_ADD, true)) {
                 continue;
@@ -112,97 +88,93 @@ CODE_SAMPLE
             }
 
             $paramDocBlock = $this->getParameterDocblock($methodDocBlock, $this->getName($parameter));
-            if (null !== $paramDocBlock) {
+            if ($paramDocBlock !== null) {
                 $docBlockForConstructor[] = $paramDocBlock;
             }
 
             $cloneParameter = clone $parameter;
-            $cloneParameter->flags = 1;
+            $cloneParameter->flags = Modifiers::PUBLIC;
 
             if ($parameter->default instanceof Expr
                 && (! $this->hasNullType($paramType)
                 && $parameter->default instanceof ConstFetch
                 && $this->hasNullValue($parameter))) {
-                $this->addTypeToParameter($cloneParameter, 'null');
+                //($cloneParameter, 'null');
             }
 
             $paramsForConstructor[] = $cloneParameter;
         }
 
-        if ([] === $paramsForConstructor) {
-            return $this->removeConstructor($node);
+        if ($paramsForConstructor === []) {
+             $this->removeConstructor($node);
+             return null;
         }
 
         $constructor = $node->getMethod(MethodName::CONSTRUCT);
         $docBlockConstructor = $constructor?->getDocComment();
-        $newDocBlockConstructor = new Doc("/**\n * ".trim("Autogenerated constructor.\n * \n * ".implode("\n * ", $docBlockForConstructor), "\n *")."\n */");
+        $dockBlockContent = trim("Autogenerated constructor.\n * \n * ".implode("\n * ", $docBlockForConstructor), "\n *");
+        $newDocBlockConstructor = new Doc("/**\n * ".$dockBlockContent."\n */");
         if ($paramsForConstructor === $constructor?->params || $docBlockConstructor === $newDocBlockConstructor) { // TODO compare docblock
             return null;
         }
-
-        $this->removeConstructor($node);
-
-        $constructor = new ClassMethod('__construct', [
+        $newConstructor = new ClassMethod(MethodName::CONSTRUCT, [
             'flags' => Modifiers::PUBLIC,
             'params' => $paramsForConstructor,
         ]);
-        $constructor->setDocComment($newDocBlockConstructor);
+        $newConstructor->setDocComment($newDocBlockConstructor);
 
-        $node->stmts[] = $constructor;
+        $this->removeConstructor($node);
+        $node->stmts[] = $newConstructor;
 
         return $node;
     }
 
     private function hasNullType(Type $type): bool
     {
-        if ($type instanceof NullType) {
-            return true;
-        }
+        return $type->isNull()->maybe()  ;
+        // if ($type instanceof NullType) {
+        //     return true;
+        // }
 
-        if ($type instanceof \PHPStan\Type\UnionType) {
-            foreach ($type->getTypes() as $type) {
-                if ($this->hasNullType($type)) {
-                    return true;
-                }
-            }
-        }
+        // if ($type instanceof \PHPStan\Type\UnionType) {
+        //     foreach ($type->getTypes() as $innerType) {
+        //         if ($this->hasNullType($innerType)) {
+        //             return true;
+        //         }
+        //     }
+        // }
 
-        return false;
+        // return false;
     }
 
     private function hasNullValue(Param $param): bool
     {
-        $text = (new BetterStandardPrinter())->print($param);
+        $text = $this->betterStandardPrinter->print($param);
 
         return str_ends_with($text, 'null');
     }
 
-    private function removeConstructor(Class_ $class): null
+    private function removeConstructor(Class_ $class): void
     {
         foreach ($class->stmts as $key => $stmt) {
-            if ($stmt instanceof ClassMethod && MethodName::CONSTRUCT === $stmt->name->toString()) {
+            if ($stmt instanceof ClassMethod && $stmt->name->toString() === MethodName::CONSTRUCT) {
                 unset($class->stmts[$key]);
 
                 break;
             }
         }
-
-        return null;
     }
 
     private function getParameterDocblock(?string $methodDocblock, string $parameterName): ?string
     {
-        if (null === $methodDocblock) {
+        if ($methodDocblock === null) {
             return null;
         }
 
-        // Regular expression to match a docblock for a specific parameter
-        $pattern = '/@param\s+[^$]*?\$'.$parameterName.'\b([^@]*)/';
+        $pattern = '/@param\s+[^$]*?\$' . $parameterName . '\b([^@]*)/';
 
-        $patternIsFound = preg_match($pattern, $methodDocblock, $matches);
-
-        if ($patternIsFound) {
-            return trim($matches[0], '*/ '."\n");
+        if (preg_match($pattern, $methodDocblock, $matches)) {
+            return trim($matches[0], '*/ ' . "\n");
         }
 
         return null;
@@ -225,17 +197,18 @@ CODE_SAMPLE
 
     private function addTypeToParameter(Param $param, string $type): void
     {
-        $existingType = $this->nodeTypeResolver->getType($param);
+        // $existingType = $this->nodeTypeResolver->getType($param);
 
-        if ($existingType instanceof \PHPStan\Type\UnionType) {
-            $existingTypes = $existingType->getTypes();
-            $newTypes = [...$existingTypes, new NullType()];
-            $param->type = new UnionType($newTypes);
+        // if ($existingType instanceof \PHPStan\Type\UnionType) {
+        //     $existingTypes = $existingType->getTypes();
+        //     $newTypes = [...$existingTypes, new NullType()];
+        //     $param->type = new UnionType($newTypes);
 
-            return;
-        }
+        //     return;
+        // }
 
-        $param->type = null;
+        // $param->type = null;
+
         // The following code is not working
         // $param->type = new UnionType([$existingType, new \PHPStan\Type\NullType()]);
         // Get it worked using nullable_type_declaration_for_default_null_value for phpcsfixer
