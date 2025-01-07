@@ -7,22 +7,16 @@ namespace PiedWeb\Splates;
 use PhpParser\Comment\Doc;
 use PhpParser\Modifiers;
 use PhpParser\Node;
-use PhpParser\Node\Expr;
-use PhpParser\Node\Expr\ConstFetch;
 use PhpParser\Node\Name;
 use PhpParser\Node\Param;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
-use PhpParser\Node\UnionType;
-use PHPStan\Type\NullType;
-use PHPStan\Type\Type;
 use PiedWeb\Splates\Template\DoNotAddItInConstructorInterface;
 use PiedWeb\Splates\Template\Template;
 use PiedWeb\Splates\Template\TemplateClass;
 use PiedWeb\Splates\Template\TemplateClassInterface;
 use Rector\NodeTypeResolver\NodeTypeResolver;
 use Rector\NodeTypeResolver\NodeTypeResolver\ParamTypeResolver;
-use Rector\PhpParser\Printer\BetterStandardPrinter;
 use Rector\Rector\AbstractRector;
 use Rector\StaticTypeMapper\ValueObject\Type\FullyQualifiedObjectType;
 use Rector\ValueObject\MethodName;
@@ -45,8 +39,7 @@ final class RectorizeTemplate extends AbstractRector
 
     public function __construct(
         private readonly ParamTypeResolver $paramTypeResolver,
-        protected NodeTypeResolver $nodeTypeResolver,
-        private readonly BetterStandardPrinter $betterStandardPrinter
+        protected NodeTypeResolver $nodeTypeResolver
     ) {
     }
 
@@ -70,6 +63,7 @@ final class RectorizeTemplate extends AbstractRector
         $displayMethod = $node->getMethod('display');
         if ($displayMethod === null || $displayMethod->params === []) {
             $this->removeConstructor($node);
+
             return null;
         }
 
@@ -95,19 +89,13 @@ final class RectorizeTemplate extends AbstractRector
             $cloneParameter = clone $parameter;
             $cloneParameter->flags = Modifiers::PUBLIC;
 
-            if ($parameter->default instanceof Expr
-                && (! $this->hasNullType($paramType)
-                && $parameter->default instanceof ConstFetch
-                && $this->hasNullValue($parameter))) {
-                //($cloneParameter, 'null');
-            }
-
             $paramsForConstructor[] = $cloneParameter;
         }
 
         if ($paramsForConstructor === []) {
-             $this->removeConstructor($node);
-             return null;
+            $this->removeConstructor($node);
+
+            return null;
         }
 
         $constructor = $node->getMethod(MethodName::CONSTRUCT);
@@ -127,31 +115,6 @@ final class RectorizeTemplate extends AbstractRector
         $node->stmts[] = $newConstructor;
 
         return $node;
-    }
-
-    private function hasNullType(Type $type): bool
-    {
-        return $type->isNull()->maybe()  ;
-        // if ($type instanceof NullType) {
-        //     return true;
-        // }
-
-        // if ($type instanceof \PHPStan\Type\UnionType) {
-        //     foreach ($type->getTypes() as $innerType) {
-        //         if ($this->hasNullType($innerType)) {
-        //             return true;
-        //         }
-        //     }
-        // }
-
-        // return false;
-    }
-
-    private function hasNullValue(Param $param): bool
-    {
-        $text = $this->betterStandardPrinter->print($param);
-
-        return str_ends_with($text, 'null');
     }
 
     private function removeConstructor(Class_ $class): void
@@ -193,24 +156,5 @@ final class RectorizeTemplate extends AbstractRector
         }
 
         return true;
-    }
-
-    private function addTypeToParameter(Param $param, string $type): void
-    {
-        // $existingType = $this->nodeTypeResolver->getType($param);
-
-        // if ($existingType instanceof \PHPStan\Type\UnionType) {
-        //     $existingTypes = $existingType->getTypes();
-        //     $newTypes = [...$existingTypes, new NullType()];
-        //     $param->type = new UnionType($newTypes);
-
-        //     return;
-        // }
-
-        // $param->type = null;
-
-        // The following code is not working
-        // $param->type = new UnionType([$existingType, new \PHPStan\Type\NullType()]);
-        // Get it worked using nullable_type_declaration_for_default_null_value for phpcsfixer
     }
 }
