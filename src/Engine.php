@@ -1,232 +1,134 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PiedWeb\Splates;
 
-use PiedWeb\Splates\Extension\ExtensionInterface;
-use PiedWeb\Splates\Template\Data;
-use PiedWeb\Splates\Template\Directory;
-use PiedWeb\Splates\Template\FileExtension;
-use PiedWeb\Splates\Template\Folders;
-use PiedWeb\Splates\Template\Func;
-use PiedWeb\Splates\Template\Functions;
-use PiedWeb\Splates\Template\Name;
-use PiedWeb\Splates\Template\ResolveTemplatePath;
-use PiedWeb\Splates\Template\ResolveTemplatePath\NameAndFolderResolveTemplatePath;
-use PiedWeb\Splates\Template\ResolveTemplatePath\ThemeResolveTemplatePath;
 use PiedWeb\Splates\Template\Template;
 use PiedWeb\Splates\Template\TemplateClass;
 use PiedWeb\Splates\Template\TemplateClassInterface;
-use PiedWeb\Splates\Template\Theme;
+use PiedWeb\Splates\Template\TemplateDataResolver;
 
 /**
  * Template API and environment settings storage.
+ *
+ * Usage:
+ * ```php
+ * $engine = new Engine();
+ * $engine->addGlobal('ext', $templateExtension);  // Available to ALL templates
+ *
+ * // Render with full IDE autocompletion
+ * echo $engine->render(new ProfileTpl(user: $user, title: 'Profile'));
+ * ```
  */
 class Engine
 {
     /**
-     * Default template directory.
+     * Global services/data available to all templates.
+     *
+     * @var array<string, mixed>
      */
-    protected Directory $directory;
+    private array $globals = [];
 
     /**
-     * Template file extension.
+     * Template data resolver with caching.
      */
-    protected FileExtension $fileExtension;
-
-    /**
-     * Collection of template folders.
-     */
-    protected Folders $folders;
-
-    /**
-     * Collection of template functions.
-     */
-    protected Functions $functions;
-
-    /**
-     * Collection of preassigned template data.
-     */
-    protected Data $data;
-
-    /** @var ResolveTemplatePath */
-    private $resolveTemplatePath;
+    private TemplateDataResolver $templateDataResolver;
 
     /**
      * Create new Engine instance.
-     * @param string $directory
-     * @param string $fileExtension
+     *
+     * @param string|null $cacheDir Directory for caching reflection data (production)
      */
-    public function __construct($directory = null, $fileExtension = 'php')
+    public function __construct(?string $cacheDir = null)
     {
-        $this->directory = new Directory($directory);
-        $this->fileExtension = new FileExtension($fileExtension);
-        $this->folders = new Folders();
-        $this->functions = new Functions();
-        $this->data = new Data();
-        $this->resolveTemplatePath = new NameAndFolderResolveTemplatePath();
+        $this->templateDataResolver = new TemplateDataResolver($cacheDir);
     }
 
-    public static function fromTheme(Theme $theme, string $fileExtension = 'php'): self
+    /**
+     * Add a global service or value available to all templates.
+     *
+     * Use with #[TemplateData(global: true)] on properties:
+     * ```php
+     * class ProfileTpl extends TemplateAbstract
+     * {
+     *     #[TemplateData(global: true)]
+     *     public TemplateExtension $ext;  // Auto-injected
+     * }
+     * ```
+     */
+    public function addGlobal(string $name, mixed $value): static
     {
-        $engine = new self(null, $fileExtension);
-        $engine->setResolveTemplatePath(new ThemeResolveTemplatePath($theme));
-
-        return $engine;
-    }
-
-    public function setResolveTemplatePath(ResolveTemplatePath $resolveTemplatePath): static
-    {
-        $this->resolveTemplatePath = $resolveTemplatePath;
-
-        return $this;
-    }
-
-    public function getResolveTemplatePath(): ResolveTemplatePath
-    {
-        return $this->resolveTemplatePath;
-    }
-
-    /**  @param  string|null $directory Pass null to disable the default directory.  */
-    public function setDirectory(?string $directory): static
-    {
-        $this->directory->set($directory);
-
-        return $this;
-    }
-
-    public function getDirectory(): ?string
-    {
-        return $this->directory->get();
-    }
-
-    public function setFileExtension(string $fileExtension): static
-    {
-        $this->fileExtension->fileExtension = $fileExtension;
-
-        return $this;
-    }
-
-    public function getFileExtension(): string
-    {
-        return $this->fileExtension->fileExtension;
-    }
-
-    public function addFolder(string $name, string $directory, bool $fallback = false): static
-    {
-        $this->folders->add($name, $directory, $fallback);
-
-        return $this;
-    }
-
-    public function removeFolder(string $name): static
-    {
-        $this->folders->remove($name);
+        $this->globals[$name] = $value;
 
         return $this;
     }
 
     /**
-     * Get collection of all template folders.
-     * @return Folders
+     * Get all registered globals.
+     *
+     * @return array<string, mixed>
      */
-    public function getFolders(): Folders
+    public function getGlobals(): array
     {
-        return $this->folders;
+        return $this->globals;
     }
 
     /**
-     * @param  array<mixed>             $data;
-     * @param  null|string|array<string> $templates;
+     * Get a specific global value.
      */
-    public function addData(array $data, $templates = null): static
+    public function getGlobal(string $name): mixed
     {
-        $this->data->add($data, $templates);
-
-        return $this;
+        return $this->globals[$name] ?? null;
     }
 
     /**
-     * @return array<mixed>
+     * Get the template data resolver.
+     */
+    public function getTemplateDataResolver(): TemplateDataResolver
+    {
+        return $this->templateDataResolver;
+    }
+
+    /**
+     * Get preassigned data for a template (legacy support).
+     *
+     * @return array<string, mixed>
      */
     public function getData(?string $template = null): array
     {
-        return $this->data->get($template);
-    }
-
-    public function registerFunction(string $name, callable $callback): static
-    {
-        $this->functions->add($name, $callback);
-
-        return $this;
-    }
-
-    public function dropFunction(string $name): static
-    {
-        $this->functions->remove($name);
-
-        return $this;
-    }
-
-    public function getFunction(string $name): Func
-    {
-        return $this->functions->get($name);
-    }
-
-    public function doesFunctionExist(string $name): bool
-    {
-        return $this->functions->exists($name);
-    }
-
-    public function loadExtension(ExtensionInterface $extension): static
-    {
-        $extension->register($this);
-
-        return $this;
+        // In v4, data is passed via constructor - this is for backwards compatibility
+        return [];
     }
 
     /**
-     * @param  array<ExtensionInterface>  $extensions
+     * Create a template instance for rendering.
+     *
+     * @param array<string, mixed> $data Additional data (legacy support)
      */
-    public function loadExtensions(array $extensions = []): static
+    public function make(TemplateClassInterface $template, array $data = []): Template
     {
-        foreach ($extensions as $extension) {
-            $this->loadExtension($extension);
-        }
+        $templateInstance = new TemplateClass($this, $template);
+        $templateInstance->data($data);
 
-        return $this;
-    }
-
-    public function path(string $name): string
-    {
-        $name = new Name($this, $name);
-
-        return $name->getPath();
-    }
-
-    public function exists(string $name): bool
-    {
-        $name = new Name($this, $name);
-
-        return $name->doesPathExist();
+        return $templateInstance;
     }
 
     /**
-     * @param  array<mixed>                           $data
+     * Render a template to string.
+     *
+     * @param array<string, mixed> $data Additional data (legacy support)
      */
-    public function make(string|TemplateClassInterface $name, array $data = []): Template
+    public function render(TemplateClassInterface $template, array $data = []): string
     {
-        $template = $name instanceof TemplateClassInterface ? new TemplateClass($this, $name)
-            : new Template($this, $name);
-        $template->data($data);
-
-        return $template;
+        return $this->make($template, $data)->render();
     }
 
     /**
-     * @param  array<mixed>  $data
+     * Clear all caches (useful for development).
      */
-    public function render(string|TemplateClassInterface $name, array $data = []): string
+    public function clearCache(): void
     {
-        return $this->make($name)->render($data);
+        $this->templateDataResolver->clearCache();
     }
 }
