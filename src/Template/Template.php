@@ -371,13 +371,15 @@ class Template implements Stringable
         return $var;
     }
 
-    public function escape(string $string, ?string $functions = null): string
+    public function escape(int|float|string|bool $string, ?string $functions = null): string
     {
         static $flags;
 
         if (! isset($flags)) {
             $flags = ENT_QUOTES | (defined('ENT_SUBSTITUTE') ? ENT_SUBSTITUTE : 0);
         }
+
+        $string = (string) $string;
 
         if ($functions) {
             $string = $this->batch($string, $functions);
@@ -389,7 +391,7 @@ class Template implements Stringable
         return htmlspecialchars($string, $flags, 'UTF-8');
     }
 
-    public function e(string $string, ?string $functions = null): string
+    public function e(int|float|string|bool $string, ?string $functions = null): string
     {
         return $this->escape($string, $functions);
     }

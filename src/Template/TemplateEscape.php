@@ -9,8 +9,8 @@ class TemplateEscape
 
     }
 
-    public function __invoke(string $string, ?string $functions = null): string
+    public function __invoke(int|float|string|bool $string, ?string $functions = null): string
     {
-        return $this->template->escape($string);
+        return $this->template->escape($string, $functions);
     }
 }
