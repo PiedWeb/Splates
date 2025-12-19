@@ -11,7 +11,7 @@ use PiedWeb\Splates\Engine;
 use PiedWeb\Splates\Template\Folder;
 use PiedWeb\Splates\Template\Name;
 
-class NameTest extends TestCase
+final class NameTest extends TestCase
 {
     private Engine $engine;
 
@@ -107,7 +107,7 @@ class NameTest extends TestCase
         $name = new Name($this->engine, 'template');
 
         $this->assertSame('template', $name->getName());
-        $this->assertNull($name->getFolder());
+        $this->assertNotInstanceOf(Folder::class, $name->getFolder());
         $this->assertSame('template.php', $name->getFile());
     }
 
@@ -160,7 +160,7 @@ class NameTest extends TestCase
         $name = new Name($this->engine, 'template.php');
 
         $this->assertSame('template.php', $name->getName());
-        $this->assertNull($name->getFolder());
+        $this->assertNotInstanceOf(Folder::class, $name->getFolder());
         $this->assertSame('template.php', $name->getFile());
     }
 }

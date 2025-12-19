@@ -59,7 +59,7 @@ class Func
     }
 
     /**  @param  array<mixed>    $arguments  */
-    public function call(Template $template = null, $arguments = []): mixed
+    public function call(?Template $template = null, $arguments = []): mixed
     {
         // autowire template
         $callbackFirstPart = is_array($this->callback) ? ($this->callback[0] ?? null) : null;

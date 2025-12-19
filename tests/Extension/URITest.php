@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 use PiedWeb\Splates\Engine;
 use PiedWeb\Splates\Extension\URI;
 
-class URITest extends TestCase
+final class URITest extends TestCase
 {
     public function testRegister(): void
     {

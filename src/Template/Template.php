@@ -197,7 +197,7 @@ class Template implements Stringable
      * @param  string $name
      * @return bool
      */
-    public function push($name): bool
+    public function push(string $name): bool
     {
         $this->appendSection = true; /* for backward compatibility */
         $this->sectionMode = $this->sectionsMode[$name] = self::SECTION_MODE_APPEND;
@@ -211,7 +211,7 @@ class Template implements Stringable
      * @param  string $name
      * @return bool
      */
-    public function unshift($name): bool
+    public function unshift(string $name): bool
     {
         $this->appendSection = false; /* for backward compatibility */
         $this->sectionMode = $this->sectionsMode[$name] = self::SECTION_MODE_PREPEND;

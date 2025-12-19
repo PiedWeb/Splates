@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 use PiedWeb\Splates\Engine;
 use PiedWeb\Splates\Extension\Asset;
 
-class AssetTest extends TestCase
+final class AssetTest extends TestCase
 {
     protected function setUp(): void
     {

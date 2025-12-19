@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PiedWeb\Splates\Tests\Template;
 
 use org\bovigo\vfs\vfsStream;
@@ -134,7 +136,7 @@ final class ThemeTest extends TestCase
 
     private function then_an_exception_is_thrown_with_message(string $expectedMessage): void
     {
-        $this->assertNotNull($this->exception, 'Expected an exception to be thrown with message: ' . $expectedMessage);
+        $this->assertInstanceOf(Throwable::class, $this->exception, 'Expected an exception to be thrown with message: ' . $expectedMessage);
         $this->assertSame($expectedMessage, $this->exception->getMessage(), 'Expected an exception to be thrown with message: ' . $expectedMessage);
     }
 }

@@ -7,7 +7,7 @@ use RuntimeException;
 
 final class Theme
 {
-    private ?\PiedWeb\Splates\Template\Theme $next = null;
+    private ?Theme $next = null;
 
     private function __construct(private readonly string $dir, private readonly string $name)
     {
@@ -20,7 +20,7 @@ final class Theme
         self::assertAllThemesInHierarchyAreLeafThemes($themes);
 
         /** @var Theme $theme */
-        $theme = array_reduce(array_slice($themes, 1), function (Theme $parent, Theme $child): \PiedWeb\Splates\Template\Theme {
+        $theme = array_reduce(array_slice($themes, 1), function (Theme $parent, Theme $child): Theme {
             $child->next = $parent;
 
             return $child;

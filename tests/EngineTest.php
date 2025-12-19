@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PiedWeb\Splates\Tests;
 
 use LogicException;
@@ -12,7 +14,7 @@ use PiedWeb\Splates\Template\Folders;
 use PiedWeb\Splates\Template\Func;
 use PiedWeb\Splates\Template\Template;
 
-class EngineTest extends TestCase
+final class EngineTest extends TestCase
 {
     private Engine $engine;
 

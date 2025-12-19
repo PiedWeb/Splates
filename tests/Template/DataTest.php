@@ -7,7 +7,7 @@ namespace PiedWeb\Splates\Tests\Template;
 use PHPUnit\Framework\TestCase;
 use PiedWeb\Splates\Template\Data;
 
-class DataTest extends TestCase
+final class DataTest extends TestCase
 {
     private Data $template_data;
 

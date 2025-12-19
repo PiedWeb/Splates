@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 use PiedWeb\Splates\Engine;
 use PiedWeb\Splates\Template\Template;
 
-class TemplateTest extends TestCase
+final class TemplateTest extends TestCase
 {
     private Template $template;
 

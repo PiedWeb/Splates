@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 use PiedWeb\Splates\Template\Folder;
 use PiedWeb\Splates\Template\Folders;
 
-class FoldersTest extends TestCase
+final class FoldersTest extends TestCase
 {
     private Folders $folders;
 

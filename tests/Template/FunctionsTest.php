@@ -8,7 +8,7 @@ use LogicException;
 use PHPUnit\Framework\TestCase;
 use PiedWeb\Splates\Template\Functions;
 
-class FunctionsTest extends TestCase
+final class FunctionsTest extends TestCase
 {
     private Functions $functions;
 

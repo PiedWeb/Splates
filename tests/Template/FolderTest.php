@@ -9,7 +9,7 @@ use org\bovigo\vfs\vfsStream;
 use PHPUnit\Framework\TestCase;
 use PiedWeb\Splates\Template\Folder;
 
-class FolderTest extends TestCase
+final class FolderTest extends TestCase
 {
     private Folder $folder;
 

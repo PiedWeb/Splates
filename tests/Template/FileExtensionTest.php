@@ -7,7 +7,7 @@ namespace PiedWeb\Splates\Tests\Template;
 use PHPUnit\Framework\TestCase;
 use PiedWeb\Splates\Template\FileExtension;
 
-class FileExtensionTest extends TestCase
+final class FileExtensionTest extends TestCase
 {
     public function testGetFileExtension(): void
     {

@@ -9,7 +9,7 @@ use org\bovigo\vfs\vfsStream;
 use PHPUnit\Framework\TestCase;
 use PiedWeb\Splates\Template\Directory;
 
-class DirectoryTest extends TestCase
+final class DirectoryTest extends TestCase
 {
     private Directory $directory;
 

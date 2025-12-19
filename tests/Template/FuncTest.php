@@ -10,7 +10,7 @@ use PiedWeb\Splates\Engine;
 use PiedWeb\Splates\Extension\ExtensionInterface;
 use PiedWeb\Splates\Template\Func;
 
-class FuncTest extends TestCase
+final class FuncTest extends TestCase
 {
     private Func $function;
 
