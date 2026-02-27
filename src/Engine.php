@@ -8,6 +8,7 @@ use PiedWeb\Splates\Template\Template;
 use PiedWeb\Splates\Template\TemplateClass;
 use PiedWeb\Splates\Template\TemplateClassInterface;
 use PiedWeb\Splates\Template\TemplateDataResolver;
+use PiedWeb\Splates\Template\TemplateFile;
 
 /**
  * Template API and environment settings storage.
@@ -36,12 +37,19 @@ class Engine
     private TemplateDataResolver $templateDataResolver;
 
     /**
+     * Template directory for file-based templates.
+     */
+    private readonly string $templateDir;
+
+    /**
      * Create new Engine instance.
      *
+     * @param string|null $templateDir Directory for file-based templates (auto-detected if null)
      * @param string|null $cacheDir Directory for caching reflection data (production)
      */
-    public function __construct(?string $cacheDir = null)
+    public function __construct(?string $templateDir = null, ?string $cacheDir = null)
     {
+        $this->templateDir = $templateDir ?? $this->detectProjectRoot();
         $this->templateDataResolver = new TemplateDataResolver($cacheDir);
     }
 
@@ -91,6 +99,14 @@ class Engine
     }
 
     /**
+     * Get the template directory.
+     */
+    public function getTemplateDir(): string
+    {
+        return $this->templateDir;
+    }
+
+    /**
      * Get preassigned data for a template (legacy support).
      *
      * @return array<string, mixed>
@@ -117,10 +133,20 @@ class Engine
     /**
      * Render a template to string.
      *
-     * @param array<string, mixed> $data Additional data (legacy support)
+     * @param TemplateClassInterface|string $template Template instance or file path
+     * @param array<string, mixed> $data Additional data
      */
-    public function render(TemplateClassInterface $template, array $data = []): string
+    public function render(TemplateClassInterface|string $template, array $data = []): string
     {
+        if (is_string($template)) {
+            // File-based template
+            $templateInstance = new TemplateFile($this, $template);
+            $templateInstance->data($data);
+
+            return $templateInstance->render();
+        }
+
+        // Class-based template (existing logic)
         return $this->make($template, $data)->render();
     }
 
@@ -130,5 +156,22 @@ class Engine
     public function clearCache(): void
     {
         $this->templateDataResolver->clearCache();
+    }
+
+    /**
+     * Detect project root by finding composer.json.
+     */
+    private function detectProjectRoot(): string
+    {
+        $dir = __DIR__;
+        while ($dir !== '/') {
+            if (file_exists($dir . '/composer.json')) {
+                return $dir;
+            }
+            $dir = dirname($dir);
+        }
+
+        // Fallback to current working directory
+        return getcwd() ?: __DIR__;
     }
 }

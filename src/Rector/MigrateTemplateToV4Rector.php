@@ -284,6 +284,9 @@ CODE_SAMPLE
 
         // Transform method calls in the body
         if ($displayMethod->stmts !== null) {
+            // First, convert short echo tags to proper echo statements
+            $displayMethod->stmts = $this->convertInlineHtmlToEcho($displayMethod->stmts);
+
             $this->transformMethodCalls($displayMethod->stmts);
         }
 
@@ -304,6 +307,25 @@ CODE_SAMPLE
         }
 
         return false;
+    }
+
+    /**
+     * Convert inline HTML with embedded PHP to pure PHP statements.
+     *
+     * This handles mixed HTML/PHP templates like short echo tags.
+     * The AST already represents short echo tags as Echo_ statements, but they're
+     * interleaved with InlineHTML. We don't need to convert anything here
+     * since php-parser already parses them correctly.
+     *
+     * @param Node\Stmt[] $stmts
+     *
+     * @return Node\Stmt[]
+     */
+    private function convertInlineHtmlToEcho(array $stmts): array
+    {
+        // php-parser already handles short echo tags as Stmt_Echo nodes
+        // The statements are already in the correct format
+        return $stmts;
     }
 
     /**

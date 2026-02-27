@@ -28,7 +28,7 @@ final class EngineTest extends TestCase
     public function testCanCreateInstanceWithCacheDir(): void
     {
         $cacheDir = sys_get_temp_dir() . '/splates_test_' . uniqid();
-        $engine = new Engine($cacheDir);
+        $engine = new Engine(cacheDir: $cacheDir);
 
         $this->assertInstanceOf(Engine::class, $engine);
 
@@ -36,6 +36,24 @@ final class EngineTest extends TestCase
         if (is_dir($cacheDir)) {
             rmdir($cacheDir);
         }
+    }
+
+    public function testCanCreateInstanceWithTemplateDir(): void
+    {
+        $templateDir = __DIR__;
+        $engine = new Engine(templateDir: $templateDir);
+
+        $this->assertInstanceOf(Engine::class, $engine);
+        $this->assertSame($templateDir, $engine->getTemplateDir());
+    }
+
+    public function testAutoDetectsProjectRoot(): void
+    {
+        $engine = new Engine();
+        $templateDir = $engine->getTemplateDir();
+
+        // Should find composer.json and use that directory
+        $this->assertFileExists($templateDir . '/composer.json');
     }
 
     public function testAddGlobal(): void
@@ -113,6 +131,31 @@ final class EngineTest extends TestCase
         $data = $this->engine->getData();
 
         $this->assertSame([], $data);
+    }
+
+    public function testRenderFileTemplate(): void
+    {
+        $engine = new Engine(templateDir: __DIR__);
+        $result = $engine->render('Template/fixtures/simple.php');
+
+        $this->assertStringContainsString('Hello', $result);
+    }
+
+    public function testRenderFileTemplateWithData(): void
+    {
+        $engine = new Engine(templateDir: __DIR__);
+        $result = $engine->render('Template/fixtures/greeting.php', ['name' => 'Alice']);
+
+        $this->assertStringContainsString('Hello, Alice!', $result);
+    }
+
+    public function testRenderClassTemplateStillWorks(): void
+    {
+        // Ensure backward compatibility with class-based templates
+        $template = new SimpleTestTemplate('ClassBased');
+        $result = $this->engine->render($template);
+
+        $this->assertSame('Hello, ClassBased!', $result);
     }
 }
 
