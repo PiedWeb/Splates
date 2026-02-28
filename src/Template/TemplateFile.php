@@ -53,8 +53,8 @@ class TemplateFile extends Template
     /**
      * Resolve and validate template path.
      *
-     * @throws \InvalidArgumentException If path is invalid
-     * @throws \RuntimeException If file not found
+     * @throws \InvalidArgumentException If path is invalid or outside allowed directory
+     * @throws \RuntimeException If file not found or directory cannot be resolved
      */
     private function resolvePath(string $path): string
     {
@@ -65,25 +65,28 @@ class TemplateFile extends Template
             );
         }
 
-        // Get template directory from Engine
+        // Resolve template directory once
         $templateDir = $this->engine->getTemplateDir();
+        $realTemplateDir = realpath($templateDir);
+        if ($realTemplateDir === false) {
+            throw new \RuntimeException(
+                \sprintf('Template directory does not exist or is not accessible: "%s"', $templateDir)
+            );
+        }
 
-        // Build full path
-        $fullPath = $templateDir . '/' . $path;
-
-        // Resolve and validate
+        // Build and resolve full path
+        $fullPath = $realTemplateDir . '/' . $path;
         $realPath = realpath($fullPath);
         if ($realPath === false) {
             throw new \RuntimeException(
-                sprintf('Template file not found: "%s"', $path)
+                \sprintf('Template file not found: "%s" (looked in "%s")', $path, $realTemplateDir)
             );
         }
 
         // Ensure resolved path is within template directory
-        $realTemplateDir = realpath($templateDir);
-        if ($realTemplateDir === false || ! str_starts_with($realPath, $realTemplateDir . \DIRECTORY_SEPARATOR)) {
+        if (! str_starts_with($realPath, $realTemplateDir . \DIRECTORY_SEPARATOR)) {
             throw new \InvalidArgumentException(
-                sprintf('Template file is outside allowed directory: "%s"', $path)
+                \sprintf('Template path "%s" resolves outside the allowed directory "%s"', $path, $realTemplateDir)
             );
         }
 

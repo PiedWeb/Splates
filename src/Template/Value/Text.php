@@ -28,7 +28,7 @@ final readonly class Text implements Stringable
 
     public function __toString(): string
     {
-        return htmlspecialchars($this->value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        return Escape::html($this->value);
     }
 
     /**

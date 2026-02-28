@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PiedWeb\Splates\Template;
 
 use PiedWeb\Splates\Engine;
+use PiedWeb\Splates\Template\Value\Escape as EscapeUtil;
 use Stringable;
 use Throwable;
 
@@ -103,7 +104,7 @@ class Template implements Stringable
      */
     public function escape(int|float|string|bool $string): string
     {
-        return htmlspecialchars((string) $string, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        return EscapeUtil::html((string) $string);
     }
 
     /**

@@ -187,7 +187,9 @@ final class InjectResolver
      */
     private function writeCache(string $className, array $bindings): void
     {
-        \assert($this->cacheDir !== null);
+        if ($this->cacheDir === null) {
+            throw new \LogicException('Cache directory must be set for file caching');
+        }
 
         if (! is_dir($this->cacheDir)) {
             mkdir($this->cacheDir, 0755, true);

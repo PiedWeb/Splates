@@ -37,9 +37,6 @@ class TemplateClass extends Template
     ) {
         $this->engine = $engine;
 
-        // Data is now passed via constructor, but we still support Engine data for compatibility
-        $this->data($this->engine->getData($templateClass::class));
-
         $this->templateFetch = new TemplateFetch($this->engine, $this);
         $this->templateEscape = new TemplateEscape($this);
     }
@@ -75,6 +72,26 @@ class TemplateClass extends Template
             };
 
             if ($value === null) {
+                // Throw if a non-nullable #[Inject] property can't be resolved
+                if ($binding->type !== null
+                    && $binding->type !== TemplateFetch::class
+                    && $binding->type !== TemplateEscape::class
+                ) {
+                    $prop = $resolver->getReflectionProperty($className, $binding->propertyName);
+                    $type = $prop->getType();
+                    if ($type instanceof \ReflectionNamedType && ! $type->allowsNull()) {
+                        throw new \RuntimeException(
+                            \sprintf(
+                                'Cannot inject property "%s::$%s": no global "%s" registered. Use $engine->addGlobal(\'%s\', ...) or make the property nullable.',
+                                $className,
+                                $binding->propertyName,
+                                $binding->globalKey,
+                                $binding->globalKey,
+                            )
+                        );
+                    }
+                }
+
                 continue;
             }
 

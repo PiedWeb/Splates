@@ -107,21 +107,10 @@ class Engine
     }
 
     /**
-     * Get preassigned data for a template (legacy support).
-     *
-     * @return array<string, mixed>
-     */
-    public function getData(?string $template = null): array
-    {
-        // In v4, data is passed via constructor - this is for backwards compatibility
-        return [];
-    }
-
-    /**
-     * Create a template instance for rendering.
-     *
-     * @param array<string, mixed> $data Additional data (legacy support)
-     */
+         * Create a template instance for rendering.
+         *
+         * @param array<string, mixed> $data Additional data (legacy support)
+         */
     public function make(TemplateClassInterface $template, array $data = []): Template
     {
         $templateInstance = new TemplateClass($this, $template);

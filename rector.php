@@ -11,7 +11,7 @@ use Rector\TypeDeclaration\Rector\ClassMethod\AddReturnTypeDeclarationRector;
 
 return RectorConfig::configure()
     ->withPaths([__DIR__.'/src', __DIR__.'/tests'])
-    ->withPhpSets(php83: true)
+    ->withPhpSets(php84: true)
     ->withRules([
         AddReturnTypeDeclarationRector::class,
         ExplicitNullableParamTypeRector::class,
@@ -23,7 +23,7 @@ return RectorConfig::configure()
         SetList::TYPE_DECLARATION,
         SetList::INSTANCEOF,
         SetList::PRIVATIZATION,
-        LevelSetList::UP_TO_PHP_83,
+        LevelSetList::UP_TO_PHP_84,
         /** @disregard P1009 */
         PHPUnitSetList::PHPUNIT_CODE_QUALITY,
     ])

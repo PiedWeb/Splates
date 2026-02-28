@@ -22,9 +22,14 @@ use Stringable;
  */
 final readonly class Js implements Stringable
 {
+    /**
+     * @throws \JsonException if value cannot be JSON-encoded
+     */
     public function __construct(
         private mixed $value,
     ) {
+        // Validate immediately — don't wait until __toString()
+        json_encode($value, \JSON_THROW_ON_ERROR);
     }
 
     /**

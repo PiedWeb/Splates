@@ -25,7 +25,7 @@ final readonly class Attr implements Stringable
 
     public function __toString(): string
     {
-        return htmlspecialchars($this->value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+        return Escape::attr($this->value);
     }
 
     /**

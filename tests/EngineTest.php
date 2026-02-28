@@ -126,14 +126,6 @@ final class EngineTest extends TestCase
         $this->engine->clearCache();
     }
 
-    public function testGetDataReturnsEmptyArray(): void
-    {
-        // getData is for legacy compatibility
-        $data = $this->engine->getData();
-
-        $this->assertSame([], $data);
-    }
-
     public function testRenderFileTemplate(): void
     {
         $engine = new Engine(templateDir: __DIR__);
