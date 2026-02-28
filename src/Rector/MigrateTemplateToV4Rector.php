@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace PiedWeb\Splates\Rector;
 
+use PhpParser\Node\Name;
+use PiedWeb\Splates\Template\TemplateAbstract;
+use PhpParser\Node\Stmt\ClassMethod;
+use PiedWeb\Splates\Template\Attribute\TemplateData;
+use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node;
 use PhpParser\Node\Attribute;
 use PhpParser\Node\AttributeGroup;
@@ -177,13 +182,15 @@ CODE_SAMPLE
 
                 continue;
             }
+
             $newImplements[] = $implement;
         }
+
         $class->implements = $newImplements;
 
         // Add extends TemplateAbstract if not already extending
-        if ($class->extends === null) {
-            $class->extends = new FullyQualified('PiedWeb\\Splates\\Template\\TemplateAbstract');
+        if (!$class->extends instanceof Name) {
+            $class->extends = new FullyQualified(TemplateAbstract::class);
             $hasChanges = true;
         }
 
@@ -193,7 +200,7 @@ CODE_SAMPLE
     private function addTemplateDataToConstructor(Class_ $class): bool
     {
         $constructor = $class->getMethod('__construct');
-        if ($constructor === null) {
+        if (!$constructor instanceof ClassMethod) {
             return false;
         }
 
@@ -212,7 +219,7 @@ CODE_SAMPLE
 
             // Add #[TemplateData] attribute
             $attribute = new Attribute(
-                new FullyQualified('PiedWeb\\Splates\\Template\\Attribute\\TemplateData')
+                new FullyQualified(TemplateData::class)
             );
             $param->attrGroups[] = new AttributeGroup([$attribute]);
             $hasChanges = true;
@@ -238,7 +245,7 @@ CODE_SAMPLE
     private function cleanupDisplayMethod(Class_ $class): bool
     {
         $displayMethod = $class->getMethod('display');
-        if ($displayMethod === null) {
+        if (!$displayMethod instanceof ClassMethod) {
             return false;
         }
 
@@ -249,44 +256,24 @@ CODE_SAMPLE
         $hasChanges = true;
 
         // Remove Template, TemplateFetch, TemplateEscape parameters and data parameters
-        $paramsToRemove = [];
-        foreach ($displayMethod->params as $index => $param) {
-            if ($param->type !== null) {
-                $typeName = $this->getName($param->type);
-                if ($typeName !== null) {
-                    // Remove framework types
-                    if (str_contains($typeName, 'Template') ||
-                        str_contains($typeName, 'TemplateFetch') ||
-                        str_contains($typeName, 'TemplateEscape')) {
-                        $paramsToRemove[] = $index;
-
-                        continue;
+        $displayMethod->params = array_values(array_filter(
+            $displayMethod->params,
+            function (Param $param) use ($class): bool {
+                if ($param->type !== null) {
+                    $typeName = $this->getName($param->type);
+                    if ($typeName !== null && (str_contains($typeName, 'Template') || str_contains($typeName, 'TemplateFetch') || str_contains($typeName, 'TemplateEscape'))) {
+                        return false;
                     }
                 }
-            }
 
-            // Remove data parameters (those that match constructor properties)
-            $paramName = $this->getName($param->var);
-            if ($paramName !== null && $this->isConstructorProperty($class, $paramName)) {
-                $paramsToRemove[] = $index;
-            }
-        }
+                $paramName = $this->getName($param->var);
 
-        if ($paramsToRemove !== []) {
-            $newParams = [];
-            foreach ($displayMethod->params as $index => $param) {
-                if (! \in_array($index, $paramsToRemove, true)) {
-                    $newParams[] = $param;
-                }
+                return $paramName === null || ! $this->isConstructorProperty($class, $paramName);
             }
-            $displayMethod->params = $newParams;
-        }
+        ));
 
         // Transform method calls in the body
         if ($displayMethod->stmts !== null) {
-            // First, convert short echo tags to proper echo statements
-            $displayMethod->stmts = $this->convertInlineHtmlToEcho($displayMethod->stmts);
-
             $this->transformMethodCalls($displayMethod->stmts);
         }
 
@@ -296,36 +283,10 @@ CODE_SAMPLE
     private function isConstructorProperty(Class_ $class, string $paramName): bool
     {
         $constructor = $class->getMethod('__construct');
-        if ($constructor === null) {
+        if (!$constructor instanceof ClassMethod) {
             return false;
         }
-
-        foreach ($constructor->params as $param) {
-            if ($param->flags !== 0 && $this->isName($param->var, $paramName)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Convert inline HTML with embedded PHP to pure PHP statements.
-     *
-     * This handles mixed HTML/PHP templates like short echo tags.
-     * The AST already represents short echo tags as Echo_ statements, but they're
-     * interleaved with InlineHTML. We don't need to convert anything here
-     * since php-parser already parses them correctly.
-     *
-     * @param Node\Stmt[] $stmts
-     *
-     * @return Node\Stmt[]
-     */
-    private function convertInlineHtmlToEcho(array $stmts): array
-    {
-        // php-parser already handles short echo tags as Stmt_Echo nodes
-        // The statements are already in the correct format
-        return $stmts;
+        return array_any($constructor->params, fn($param): bool => $param->flags !== 0 && $this->isName($param->var, $paramName));
     }
 
     /**
@@ -335,7 +296,7 @@ CODE_SAMPLE
     {
         $this->traverseNodesWithCallable($stmts, function (Node $node): ?Node {
             // Transform $e($value) to $this->e($value)
-            if ($node instanceof Node\Expr\FuncCall &&
+            if ($node instanceof FuncCall &&
                 $node->name instanceof Variable &&
                 $this->isName($node->name, 'e')) {
                 return new MethodCall(
@@ -346,7 +307,7 @@ CODE_SAMPLE
             }
 
             // Transform $f(new Tpl()) to $this->render(new Tpl())
-            if ($node instanceof Node\Expr\FuncCall &&
+            if ($node instanceof FuncCall &&
                 $node->name instanceof Variable &&
                 $this->isName($node->name, 'f')) {
                 return new MethodCall(

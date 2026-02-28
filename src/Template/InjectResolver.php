@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PiedWeb\Splates\Template;
 
+use ReflectionNamedType;
+use LogicException;
 use PiedWeb\Splates\Template\Attribute\Inject;
 use ReflectionClass;
 use ReflectionProperty;
@@ -141,7 +143,7 @@ final class InjectResolver
             $attr = $attrs[0]->newInstance();
 
             $type = $property->getType();
-            $typeName = $type instanceof \ReflectionNamedType ? $type->getName() : null;
+            $typeName = $type instanceof ReflectionNamedType ? $type->getName() : null;
 
             $propertyName = $property->getName();
             self::$reflectionCache[$className][$propertyName] = $property;
@@ -188,7 +190,7 @@ final class InjectResolver
     private function writeCache(string $className, array $bindings): void
     {
         if ($this->cacheDir === null) {
-            throw new \LogicException('Cache directory must be set for file caching');
+            throw new LogicException('Cache directory must be set for file caching');
         }
 
         if (! is_dir($this->cacheDir)) {
@@ -220,16 +222,6 @@ final class InjectResolver
      */
     private function hydrateBindings(array $data): array
     {
-        $bindings = [];
-        foreach ($data as $item) {
-            $bindings[] = new InjectBinding(
-                propertyName: $item['propertyName'],
-                globalKey: $item['globalKey'],
-                escape: $item['escape'],
-                type: $item['type'],
-            );
-        }
-
-        return $bindings;
+        return array_values(array_map(fn (array $item): InjectBinding => new InjectBinding(...$item), $data));
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PiedWeb\Splates\Tests;
 
+use stdClass;
 use PHPUnit\Framework\TestCase;
 use PiedWeb\Splates\Engine;
 use PiedWeb\Splates\Template\Attribute\Inject;
@@ -59,7 +60,7 @@ final class EngineTest extends TestCase
 
     public function testAddGlobal(): void
     {
-        $service = new \stdClass();
+        $service = new stdClass();
         $service->name = 'TestService';
 
         $result = $this->engine->addGlobal('service', $service);

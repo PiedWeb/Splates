@@ -29,14 +29,14 @@ use Attribute;
  * ```
  */
 #[Attribute(Attribute::TARGET_PROPERTY)]
-final class Inject
+final readonly class Inject
 {
     public function __construct(
         /**
          * Auto-escape scalar values by wrapping them in Text.
          * Only applies to string values - objects are passed as-is.
          */
-        public readonly bool $escape = false,
+        public bool $escape = false,
     ) {
     }
 }

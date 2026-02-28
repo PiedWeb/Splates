@@ -22,11 +22,8 @@ class Template implements Stringable
      */
     protected array $data = [];
 
-    protected Engine $engine;
-
-    public function __construct(Engine $engine)
+    public function __construct(protected Engine $engine)
     {
-        $this->engine = $engine;
     }
 
     public function __toString(): string

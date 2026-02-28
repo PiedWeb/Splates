@@ -23,7 +23,7 @@ use Stringable;
 final readonly class Js implements Stringable
 {
     /**
-     * @throws \JsonException if value cannot be JSON-encoded
+     * @throws JsonException if value cannot be JSON-encoded
      */
     public function __construct(
         private mixed $value,

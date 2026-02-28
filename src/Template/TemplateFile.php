@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace PiedWeb\Splates\Template;
 
+use Override;
+use InvalidArgumentException;
+use RuntimeException;
 use PiedWeb\Splates\Engine;
 
 /**
@@ -23,6 +26,7 @@ class TemplateFile extends Template
         $this->resolvedPath = $this->resolvePath($templatePath);
     }
 
+    #[Override]
     protected function display(): void
     {
         // Create helper closures
@@ -40,11 +44,13 @@ class TemplateFile extends Template
         })($this->resolvedPath, $__vars);
     }
 
+    #[Override]
     public function path(): string
     {
         return $this->templatePath;
     }
 
+    #[Override]
     public function exists(): bool
     {
         return file_exists($this->resolvedPath);
@@ -53,14 +59,14 @@ class TemplateFile extends Template
     /**
      * Resolve and validate template path.
      *
-     * @throws \InvalidArgumentException If path is invalid or outside allowed directory
-     * @throws \RuntimeException If file not found or directory cannot be resolved
+     * @throws InvalidArgumentException If path is invalid or outside allowed directory
+     * @throws RuntimeException If file not found or directory cannot be resolved
      */
     private function resolvePath(string $path): string
     {
         // Validate path - block null bytes
         if (str_contains($path, "\0")) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Invalid template path: contains null byte'
             );
         }
@@ -69,7 +75,7 @@ class TemplateFile extends Template
         $templateDir = $this->engine->getTemplateDir();
         $realTemplateDir = realpath($templateDir);
         if ($realTemplateDir === false) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 \sprintf('Template directory does not exist or is not accessible: "%s"', $templateDir)
             );
         }
@@ -78,14 +84,14 @@ class TemplateFile extends Template
         $fullPath = $realTemplateDir . '/' . $path;
         $realPath = realpath($fullPath);
         if ($realPath === false) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 \sprintf('Template file not found: "%s" (looked in "%s")', $path, $realTemplateDir)
             );
         }
 
         // Ensure resolved path is within template directory
         if (! str_starts_with($realPath, $realTemplateDir . \DIRECTORY_SEPARATOR)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 \sprintf('Template path "%s" resolves outside the allowed directory "%s"', $path, $realTemplateDir)
             );
         }

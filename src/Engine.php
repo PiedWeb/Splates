@@ -34,7 +34,7 @@ class Engine
     /**
      * Inject resolver with caching.
      */
-    private InjectResolver $injectResolver;
+    private readonly InjectResolver $injectResolver;
 
     /**
      * Template directory for file-based templates.
@@ -107,10 +107,10 @@ class Engine
     }
 
     /**
-         * Create a template instance for rendering.
-         *
-         * @param array<string, mixed> $data Additional data (legacy support)
-         */
+     * Create a template instance for rendering.
+     *
+     * @param array<string, mixed> $data Additional data (legacy support)
+     */
     public function make(TemplateClassInterface $template, array $data = []): Template
     {
         $templateInstance = new TemplateClass($this, $template);
@@ -157,6 +157,7 @@ class Engine
             if (file_exists($dir . '/composer.json')) {
                 return $dir;
             }
+
             $dir = dirname($dir);
         }
 

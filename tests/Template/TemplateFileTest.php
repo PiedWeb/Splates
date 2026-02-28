@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PiedWeb\Splates\Tests\Template;
 
+use RuntimeException;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use PiedWeb\Splates\Engine;
 use PiedWeb\Splates\Template\TemplateFile;
@@ -55,7 +57,7 @@ final class TemplateFileTest extends TestCase
     public function testPathTraversalBlocked(): void
     {
         // Path traversal that doesn't exist throws RuntimeException
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('not found');
 
         new TemplateFile($this->engine, '../../../etc/passwd');
@@ -63,7 +65,7 @@ final class TemplateFileTest extends TestCase
 
     public function testNullByteBlocked(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('null byte');
 
         new TemplateFile($this->engine, "test\0file.php");
@@ -71,7 +73,7 @@ final class TemplateFileTest extends TestCase
 
     public function testMissingFileThrows(): void
     {
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('not found');
 
         new TemplateFile($this->engine, 'tests/Template/fixtures/nonexistent.php');

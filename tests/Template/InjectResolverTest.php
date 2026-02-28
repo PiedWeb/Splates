@@ -103,6 +103,7 @@ final class InjectResolverTest extends TestCase
                     unlink($file);
                 }
             }
+
             if (is_dir($cacheDir)) {
                 rmdir($cacheDir);
             }

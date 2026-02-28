@@ -23,13 +23,9 @@ use Stringable;
  */
 final readonly class Slot implements Stringable
 {
-    /** @var Closure(): string */
-    private Closure $closure;
-
     /** @param Closure(): string $closure */
-    public function __construct(Closure $closure)
+    public function __construct(private Closure $closure)
     {
-        $this->closure = $closure;
     }
 
     public function __toString(): string

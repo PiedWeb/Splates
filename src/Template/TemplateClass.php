@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PiedWeb\Splates\Template;
 
+use RuntimeException;
 use Override;
 use PiedWeb\Splates\Engine;
 use PiedWeb\Splates\Template\Value\Text;
@@ -73,14 +74,11 @@ class TemplateClass extends Template
 
             if ($value === null) {
                 // Throw if a non-nullable #[Inject] property can't be resolved
-                if ($binding->type !== null
-                    && $binding->type !== TemplateFetch::class
-                    && $binding->type !== TemplateEscape::class
-                ) {
+                if ($binding->type !== null) {
                     $prop = $resolver->getReflectionProperty($className, $binding->propertyName);
                     $type = $prop->getType();
-                    if ($type instanceof \ReflectionNamedType && ! $type->allowsNull()) {
-                        throw new \RuntimeException(
+                    if ($type instanceof ReflectionNamedType && ! $type->allowsNull()) {
+                        throw new RuntimeException(
                             \sprintf(
                                 'Cannot inject property "%s::$%s": no global "%s" registered. Use $engine->addGlobal(\'%s\', ...) or make the property nullable.',
                                 $className,

@@ -145,7 +145,7 @@ class CaptureTemplate extends TemplateAbstract
 {
     public function __invoke(): void
     {
-        $captured = $this->capture(function () {
+        $captured = $this->capture(function (): void {
             echo '<p>Test</p>';
         });
 
@@ -185,7 +185,7 @@ class PageWithLayoutTemplate extends TemplateAbstract
     {
         echo $this->render(new SimpleLayoutTemplate(
             title: 'My Page',
-            content: new Slot(fn () => 'Page Content'),
+            content: new Slot(fn (): string => 'Page Content'),
         ));
     }
 }
@@ -206,7 +206,7 @@ class LayoutWithOptionalSlotsTemplate extends TemplateAbstract
     public function __invoke(): void
     { ?>
 <main><?= $this->content ?></main>
-<?php if ($this->sidebar): ?>
+<?php if ($this->sidebar instanceof \PiedWeb\Splates\Template\Value\Slot): ?>
 <aside><?= $this->sidebar ?></aside>
 <?php endif ?>
 <?php }
@@ -220,7 +220,7 @@ class PageWithOptionalSlotsTemplate extends TemplateAbstract
     public function __invoke(): void
     {
         echo $this->render(new LayoutWithOptionalSlotsTemplate(
-            content: new Slot(fn () => 'Content'),
+            content: new Slot(fn (): string => 'Content'),
             // sidebar not provided
         ));
     }
