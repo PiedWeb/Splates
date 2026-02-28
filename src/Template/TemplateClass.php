@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace PiedWeb\Splates\Template;
 
-use RuntimeException;
 use Override;
 use PiedWeb\Splates\Engine;
 use PiedWeb\Splates\Template\Value\Text;
 use ReflectionMethod;
 use ReflectionNamedType;
+use RuntimeException;
 
 /**
  * Handles rendering of class-based templates.

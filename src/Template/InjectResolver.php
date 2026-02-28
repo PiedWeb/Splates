@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace PiedWeb\Splates\Template;
 
-use ReflectionNamedType;
 use LogicException;
 use PiedWeb\Splates\Template\Attribute\Inject;
 use ReflectionClass;
+use ReflectionNamedType;
 use ReflectionProperty;
 
 /**

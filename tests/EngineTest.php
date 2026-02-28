@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PiedWeb\Splates\Tests;
 
-use stdClass;
 use PHPUnit\Framework\TestCase;
 use PiedWeb\Splates\Engine;
 use PiedWeb\Splates\Template\Attribute\Inject;
@@ -12,6 +11,7 @@ use PiedWeb\Splates\Template\Attribute\TemplateData;
 use PiedWeb\Splates\Template\InjectResolver;
 use PiedWeb\Splates\Template\Template;
 use PiedWeb\Splates\Template\TemplateAbstract;
+use stdClass;
 
 final class EngineTest extends TestCase
 {

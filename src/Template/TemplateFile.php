@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace PiedWeb\Splates\Template;
 
-use Override;
 use InvalidArgumentException;
-use RuntimeException;
+use Override;
 use PiedWeb\Splates\Engine;
+use RuntimeException;
 
 /**
  * File-based template that includes a PHP file from the template directory.

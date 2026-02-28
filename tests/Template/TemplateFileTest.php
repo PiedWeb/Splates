@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace PiedWeb\Splates\Tests\Template;
 
-use RuntimeException;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use PiedWeb\Splates\Engine;
 use PiedWeb\Splates\Template\TemplateFile;
+use RuntimeException;
 
 final class TemplateFileTest extends TestCase
 {
