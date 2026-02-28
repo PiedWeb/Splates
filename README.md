@@ -496,20 +496,17 @@ $engine->getInjectResolver()->warmCache([
 composer test    # Run tests
 composer stan    # Run PHPStan
 composer format  # Format code
-composer rector  # Run Rector
 ```
 
 ---
 
-## Migrating from v3 to v4
+## Migrating from league/plates
 
-v4 is a full rewrite. The extension system, folder/theme system, function registry, and string-based template names are all removed in favor of PHP classes, attributes, and PSR-4 autoloading.
+Splates is a fork of [league/plates](https://github.com/thephpleague/plates), redesigned around PHP classes, attributes, and PSR-4 autoloading instead of string-based template names.
 
-### Breaking Changes Summary
+### Key Differences
 
-#### Engine API
-
-| v3 | v4 |
+| league/plates | Splates |
 |---|---|
 | `new Engine('/templates', 'php')` | `new Engine(templateDir: '/templates')` |
 | `$engine->render('profile', ['name' => 'John'])` | `$engine->render(new ProfileTpl(name: 'John'))` |
@@ -517,186 +514,74 @@ v4 is a full rewrite. The extension system, folder/theme system, function regist
 | `$engine->registerFunction('upper', ...)` | Removed - use plain PHP |
 | `$engine->loadExtension(new Asset(...))` | Removed - use `#[Inject]` |
 | `$engine->addFolder('emails', '/path')` | Removed - use PSR-4 namespaces |
-| `$engine->setFileExtension('tpl')` | Removed - always `.php` |
-| `Engine::fromTheme(...)` | Removed |
-| `$engine->path('template')` | Removed |
-| `$engine->exists('template')` | Removed |
-| `$engine->make('template')` | `$engine->make(new Tpl())` (accepts `TemplateClassInterface` only) |
+| `$this->e($value)` in templates | `$this->e($value)` (same) |
+| `$this->fetch('partial')` | `$this->render(new PartialTpl())` |
+| `$this->layout('layout')` | `echo $this->render(new LayoutTpl(content: ...))` |
+| `$this->section('content')` | `($this->content)()` in layout |
+| `$this->start('content')` ... `$this->stop()` | `content: $this->slot(function() { ... })` |
 
-#### Template API
+### Migration Steps
 
-| v3 | v4 |
-|---|---|
-| `implements TemplateClassInterface` | `extends TemplateAbstract` (recommended) or `implements TemplateClassInterface` |
-| `display(Template $t, TemplateFetch $f, TemplateEscape $e, ...)` | `__invoke(): void` |
-| `$e($value)` or `$t->e($value)` | `$this->e($value)` |
-| `$f(new Tpl())` or `$t->fetch(new Tpl())` | `$this->render(new Tpl())` |
-| `$t->layout(new BaseTpl())` | `echo $this->render(new BaseTpl(content: ...))` |
-| `$t->start('content')` ... `$t->stop()` | Slots: `content: $this->slot(function() { ... })` |
-| `$t->section('content')` | `($this->content)()` in layout |
-| `$t->section('nav', $default)` | `$this->nav ? ($this->nav)() : $default` |
-| Constructor props (no attribute) | Constructor props with `#[TemplateData]` |
-| `public TemplateExtension $ext` (autowired via data) | `#[Inject] public TemplateExtension $ext` |
+#### 1. Convert string templates to classes
 
-#### Removed Classes
-
-- `PiedWeb\Splates\Extension\ExtensionInterface`, `Asset`, `URI`
-- `PiedWeb\Splates\Template\Data`, `Directory`, `FileExtension`, `Folder`, `Folders`
-- `PiedWeb\Splates\Template\Func`, `Functions`, `Name`, `Theme`
-- `PiedWeb\Splates\Template\ResolveTemplatePath\*`
-- `PiedWeb\Splates\Template\TemplateClassAbstract`, `DoNotAddItInConstructorInterface`
-- `PiedWeb\Splates\Exception\TemplateNotFound`
-- `PiedWeb\Splates\RectorizeTemplate` (replaced by `Rector\MigrateTemplateToV4Rector`)
-
-#### New Classes
-
-- `PiedWeb\Splates\Template\TemplateAbstract` - base class with `render()`, `capture()`, `slot()`, `e()` helpers
-- `PiedWeb\Splates\Template\InjectResolver` - reflection-based injection with caching
-- `PiedWeb\Splates\Template\Attribute\TemplateData` - marks constructor parameters for IDE autocompletion
-- `PiedWeb\Splates\Template\Attribute\Inject` - injects `TemplateFetch`/`TemplateEscape` and Engine globals into properties
-- `PiedWeb\Splates\Template\Value\Text`, `Html`, `Attr`, `Js`, `Slot` - context-aware escaping value objects
-- `PiedWeb\Splates\Template\TemplateFile` - file-based templates (new)
-- `PiedWeb\Splates\Template\InjectBinding` - internal binding mechanism
-
-### Step-by-Step Migration
-
-#### Step 1: Update Engine Setup
-
-**Before (v3):**
+**Before (league/plates):**
 
 ```php
-$engine = new Engine('/path/to/templates', 'php');
-$engine->addFolder('emails', '/path/to/emails');
-$engine->loadExtension(new Asset('/assets'));
-$engine->addData(['siteName' => 'My App']);
+// templates/profile.php
+<h1><?= $this->e($name) ?></h1>
+<p><?= $this->e($bio) ?></p>
+```
 
-// Custom engine subclass
-class MyEngine extends Engine {
-    public function make(string|TemplateClassInterface $name, array $data = []): Template {
-        $template = parent::make($name, $data);
-        $template->data(['ext' => $this->ext]);
-        return $template;
-    }
+**After (Splates):**
+
+```php
+class ProfileTpl extends TemplateAbstract
+{
+    public function __construct(
+        #[TemplateData] public string $name,
+        #[TemplateData] public string $bio,
+    ) {}
+
+    public function __invoke(): void
+    { ?>
+<h1><?= $this->e($this->name) ?></h1>
+<p><?= $this->e($this->bio) ?></p>
+    <?php }
 }
 ```
 
-**After (v4):**
+For simple templates that don't need type safety, file-based templates are still supported:
 
 ```php
-$engine = new Engine();
-$engine->addGlobal('ext', $templateExtension);  // Replaces extension system AND data injection
-$engine->addGlobal('siteName', 'My App');
-
-// No subclass needed - globals are auto-injected via #[Inject]
+$engine->render('path/to/template.php', ['name' => 'John']);
 ```
 
-#### Step 2: Run Rector (Partial Automation)
+#### 2. Convert layouts to slots
 
-A Rector rule handles some of the mechanical changes:
+**Before (league/plates):**
 
 ```php
-// rector.php
-use PiedWeb\Splates\Rector\MigrateTemplateToV4Rector;
-use Rector\Config\RectorConfig;
-
-return RectorConfig::configure()
-    ->withPaths([__DIR__.'/src/Templates'])
-    ->withRules([
-        MigrateTemplateToV4Rector::class,
-    ]);
-```
-
-```bash
-vendor/bin/rector process
-```
-
-**What Rector does:**
-
-1. Changes `implements TemplateClassInterface` to `extends TemplateAbstract`
-2. Adds `#[TemplateData]` to promoted constructor properties
-3. Renames `display()` to `__invoke()`
-4. Removes `Template $t`, `TemplateFetch $f`, `TemplateEscape $e` parameters from `__invoke()`
-5. Removes data parameters that duplicate constructor properties
-6. Transforms `$e($x)` to `$this->e($x)`
-7. Transforms `$f(new Tpl())` to `$this->render(new Tpl())`
-8. Transforms `$t->e($x)` / `$t->escape($x)` to `$this->e($x)`
-9. Transforms `$t->layout(new Tpl())` to `$this->render(new Tpl())` (partial - see limitations)
-
-**What Rector does NOT do (manual fixes required):**
-
-1. **Does not convert `$variable` to `$this->variable`** - You must update all references to display parameters (e.g. `$name` becomes `$this->name`)
-2. **Does not clean up old `use` statements** - Remove unused imports manually
-3. **Does not handle `$t->fetch(new Tpl())`** - Only handles `$f(...)`, not `$t->fetch(...)`
-4. **Does not convert sections to slots** - `$t->start('content')` / `$t->stop()` / `$t->section('content')` need full manual rewrite (see Step 4)
-5. **Does not handle `$ext->method()` calls** - Extension references stay as-is but need `$this->ext->` prefix
-6. **Does not add `#[Inject]`** - Global properties must be annotated manually
-
-#### Step 3: Fix Variable References and Imports
-
-After Rector runs, fix every template file:
-
-```php
-// Rector output (broken):
-public function __invoke(): void
-{
-    echo $this->e($name);        // $name is no longer a parameter!
-    echo $this->render(new SidebarTpl());
-}
-
-// Fixed:
-public function __invoke(): void
-{
-    echo $this->e($this->name);  // Access as property
-    echo $this->render(new SidebarTpl());
-}
-```
-
-Clean up imports in every file:
-
-```php
-// Remove these
-use PiedWeb\Splates\Template\Template;
-use PiedWeb\Splates\Template\TemplateFetch;
-use PiedWeb\Splates\Template\TemplateEscape;
-use PiedWeb\Splates\Template\TemplateClassInterface;
-use App\Plates\AbstractTemplate;  // Your old base class
-
-// Add these (if not already added by Rector)
-use PiedWeb\Splates\Template\Attribute\TemplateData;
-use PiedWeb\Splates\Template\TemplateAbstract;
-```
-
-#### Step 4: Convert Layouts and Sections to Slots
-
-This is the biggest manual change. The v3 section system (`$t->layout()`, `$t->start()/$t->stop()`, `$t->section()`) is replaced by passing `Closure` properties to layout templates.
-
-**v3 layout:**
-
-```php
-class BaseTpl implements TemplateClassInterface
-{
-    public function display(Template $t, string $title = 'App'): void { ?>
+// templates/layout.php
 <!DOCTYPE html>
 <html>
-<head><title><?= $t->e($title) ?></title></head>
-<body>
-    <?= $t->section('navbar', $t->fetch(new NavbarTpl())) ?>
-    <?= $t->section('content') ?>
-</body>
+<head><title><?= $this->e($title) ?></title></head>
+<body><?= $this->section('content') ?></body>
 </html>
-    <?php }
-    public function __construct(public string $title = 'App') {}
-}
+
+// templates/page.php
+<?php $this->layout('layout', ['title' => $title]) ?>
+<?php $this->start('content') ?>
+<h1><?= $this->e($title) ?></h1>
+<?php $this->stop() ?>
 ```
 
-**v4 layout (slots are explicit constructor parameters):**
+**After (Splates):**
 
 ```php
-class BaseTpl extends TemplateAbstract
+class LayoutTpl extends TemplateAbstract
 {
     public function __construct(
         #[TemplateData] public string $title = 'App',
-        #[TemplateData] public ?Closure $navbar = null,
         #[TemplateData] public ?Closure $content = null,
     ) {}
 
@@ -706,12 +591,6 @@ class BaseTpl extends TemplateAbstract
 <html>
 <head><title><?= $this->e($this->title) ?></title></head>
 <body>
-    <?php if ($this->navbar): ?>
-        <?= ($this->navbar)() ?>
-    <?php else: ?>
-        <?= $this->render(new NavbarTpl()) ?>
-    <?php endif ?>
-
     <?php if ($this->content): ?>
         <?= ($this->content)() ?>
     <?php endif ?>
@@ -719,311 +598,57 @@ class BaseTpl extends TemplateAbstract
 </html>
     <?php }
 }
-```
 
-**v3 page (using layout + sections):**
-
-```php
-class PageTpl implements TemplateClassInterface
-{
-    public function display(Template $t, TemplateFetch $f, string $title, string $body): void { ?>
-<?php $t->layout(new BaseTpl($title)) ?>
-
-<?php $t->start('content') ?>
-<div class="page">
-    <h1><?= $t->e($title) ?></h1>
-    <?= $body ?>
-</div>
-<?php $t->stop() ?>
-    <?php }
-    public function __construct(public string $title, public string $body) {}
-}
-```
-
-**v4 page (passing slots to layout):**
-
-```php
 class PageTpl extends TemplateAbstract
 {
     public function __construct(
         #[TemplateData] public string $title,
-        #[TemplateData] public string $body,
     ) {}
 
     public function __invoke(): void
     {
-        echo $this->render(new BaseTpl(
+        echo $this->render(new LayoutTpl(
             title: $this->title,
             content: $this->slot(function() { ?>
-
-<div class="page">
-    <h1><?= $this->e($this->title) ?></h1>
-    <?= $this->body ?>
-</div>
-
+<h1><?= $this->e($this->title) ?></h1>
             <?php }),
         ));
     }
 }
 ```
 
-Key patterns for section conversion:
+#### 3. Replace extensions with globals
 
-| v3 Section Pattern | v4 Slot Pattern |
-|---|---|
-| `$t->section('name')` in layout | `($this->name)()` or `<?= $this->name ?>` (with `Slot` type) |
-| `$t->section('name', $default)` in layout | `$this->name ? ($this->name)() : $default` |
-| `$t->start('name') ... $t->stop()` in page | `name: $this->slot(function() { ... })` |
-| `$t->layout(new BaseTpl(...))` in page | `echo $this->render(new BaseTpl(..., content: $this->slot(...)))` |
-
-#### Step 5: Convert Global Services (Extensions)
-
-**v3 pattern** - custom AbstractTemplate + engine subclass:
+**Before (league/plates):**
 
 ```php
-// AbstractTemplate.php
-abstract class AbstractTemplate implements TemplateClassInterface
-{
-    public TemplateExtension $ext;  // Injected via $template->data(['ext' => ...])
-}
+$engine->loadExtension(new Asset('/assets'));
+// In template: $this->asset('logo.png')
+```
 
-// MyEngine.php
-class MyEngine extends Engine
+**After (Splates):**
+
+```php
+$engine = new Engine();
+$engine->addGlobal('assetPath', '/assets');
+
+// In template class:
+class MyTpl extends TemplateAbstract
 {
-    public function make(string|TemplateClassInterface $name, array $data = []): Template
+    #[Inject] public string $assetPath;
+
+    public function __invoke(): void
     {
-        $template = parent::make($name, $data);
-        $template->data(['ext' => $this->ext]);
-        return $template;
+        echo $this->assetPath.'/logo.png';
     }
 }
 ```
 
-**v4 pattern** - `#[Inject]` + `Engine::addGlobal()`:
-
-```php
-// AppTemplate.php (optional base class)
-abstract class AppTemplate extends TemplateAbstract
-{
-    #[Inject]
-    public TemplateExtension $ext;
-}
-
-// Engine setup - no subclass needed
-$engine = new Engine();
-$engine->addGlobal('ext', $templateExtension);
-```
-
-The global name (`'ext'`) must match the property name (`$ext`). The engine auto-injects it into any template that declares an `#[Inject]` property with that name.
-
-#### Step 6: Delete Old Infrastructure
-
-After migrating all templates, remove:
-
-- Your `AbstractTemplate` base class
-- Your `Engine` subclass (if any)
-- Any `ExtensionInterface` implementations (move logic to service classes)
-- Template folder/theme configuration
-- The `RectorizeTemplate` rector rule (replaced by `MigrateTemplateToV4Rector`)
-
-#### Step 7: Verify
+#### 4. Verify
 
 ```bash
 composer stan     # PHPStan will catch most type errors
 composer test     # Run your tests
-```
-
-### Migrating from league/plates
-
-If you're coming from the original `league/plates` package (not Splates v3), the migration is similar but you'll also need to:
-
-1. **Change namespace**: `League\Plates\` becomes `PiedWeb\Splates\`
-2. **Convert string templates to classes**: `$engine->render('profile', ['name' => 'John'])` becomes `$engine->render(new ProfileTpl(name: 'John'))`
-3. **Remove all `$this->` template helper calls** from `.php` template files and convert them to class-based templates extending `TemplateAbstract`
-4. Follow Steps 1-7 above for the rest
-
-File-based templates are still supported for simple cases via `$engine->render('path/to/template.php', ['name' => 'John'])`, but class-based templates are recommended for type safety.
-
----
-
-## Migration Examples (Real-World)
-
-### Example 1: Simple Template
-
-**Before (v3)**
-
-```php
-class LogoTpl extends AbstractTemplate implements TemplateClassInterface
-{
-    public function display(
-        Template $t,
-        TemplateExtension $ext,
-        string $style = '',
-    ): void { ?>
-<svg style="<?= $style ?>">...</svg>
-    <?php }
-
-    public function __construct(public string $style = '') {}
-}
-```
-
-**After (v4)**
-
-```php
-class LogoTpl extends TemplateAbstract
-{
-    public function __construct(
-        #[TemplateData]
-        public string $style = '',
-    ) {}
-
-    public function __invoke(): void
-    { ?>
-<svg style="<?= $this->e($this->style) ?>">...</svg>
-    <?php }
-}
-```
-
-### Example 2: Template with Child Rendering
-
-**Before (v3)**
-
-```php
-class SearchTpl extends AbstractTemplate implements TemplateClassInterface
-{
-    public function display(
-        Template $t,
-        TemplateExtension $ext,
-        \PiedWeb\Splates\Template\TemplateFetch $f,
-        string $keyword,
-        ?Search $search,
-    ): void { ?>
-<?php $t->layout(new BaseTpl(searchValue: $keyword)) ?>
-
-<div class="px-3 mx-auto">
-  <?= $t->fetch(new SearchNavbarTpl($keyword, $search)) ?>
-
-  <?php $project = $ext->getUser()->getCurrentProject() ?>
-  <a href="<?= $ext->url(ProjectController::class, ['projectId' => $project->getId()]) ?>">
-    <?= $project->getName() ?>
-  </a>
-
-  <?= $f(new NoteDeleteButtonTpl($note)) ?>
-</div>
-    <?php }
-
-    public function __construct(public string $keyword, public ?Search $search) {}
-}
-```
-
-**After (v4)**
-
-```php
-class SearchTpl extends AppTemplate
-{
-    public function __construct(
-        #[TemplateData]
-        public string $keyword,
-        #[TemplateData]
-        public ?Search $search,
-    ) {}
-
-    public function __invoke(): void
-    {
-        echo $this->render(new BaseTpl(
-            searchValue: $this->keyword,
-            content: $this->slot(function() { ?>
-
-<div class="px-3 mx-auto">
-  <?= $this->render(new SearchNavbarTpl($this->keyword, $this->search)) ?>
-
-  <?php $project = $this->ext->getUser()->getCurrentProject() ?>
-  <a href="<?= $this->ext->url(ProjectController::class, ['projectId' => $project->getId()]) ?>">
-    <?= $this->e($project->getName()) ?>
-  </a>
-
-  <?= $this->render(new NoteDeleteButtonTpl($note)) ?>
-</div>
-
-            <?php }),
-        ));
-    }
-}
-```
-
-### Example 3: Layout with Multiple Slots
-
-**After (v4)**
-
-```php
-class BaseTpl extends AppTemplate
-{
-    public function __construct(
-        #[TemplateData] public string $title = 'App',
-        #[TemplateData] public ?Closure $navbar = null,
-        #[TemplateData] public ?Closure $content = null,
-        #[TemplateData] public ?Closure $scripts = null,
-    ) {}
-
-    public function __invoke(): void
-    { ?>
-<!DOCTYPE html>
-<html>
-<head><title><?= $this->e($this->title) ?></title></head>
-<body>
-    <?php if ($this->navbar): ?>
-        <?= ($this->navbar)() ?>
-    <?php else: ?>
-        <?= $this->render(new NavbarTpl()) ?>
-    <?php endif ?>
-
-    <?php if ($this->content): ?>
-        <?= ($this->content)() ?>
-    <?php endif ?>
-
-    <?php if ($this->scripts): ?>
-        <?= ($this->scripts)() ?>
-    <?php endif ?>
-</body>
-</html>
-    <?php }
-}
-```
-
-### Example 4: Engine Setup
-
-**Before (v3):**
-
-```php
-$engine = new PlatesTemplateEngine($templateExtension, $stopwatch);
-// PlatesTemplateEngine extends Engine, injects $ext via data
-
-echo $engine->render(new SearchTpl(keyword: 'test', search: $search));
-```
-
-**After (v4):**
-
-```php
-$engine = new Engine();
-$engine->addGlobal('ext', $templateExtension);
-
-echo $engine->render(new SearchTpl(keyword: 'test', search: $search));
-```
-
----
-
-## TODO
-
-- [ ] Permit simple template file next to the class file (but discouraged the usage in docs)
-
-```php
-// The goal is to manage very simple template (like a button)
-// before to implement : resolve how to inject template tools like escape
-$this->render('profile.html.php', ['name' => 'John']);
-// ...
-// profile.html.php
-<?php /** @var string $name */ ?>
-<h1><?= $e($name) ?></h1>
 ```
 
 ---
