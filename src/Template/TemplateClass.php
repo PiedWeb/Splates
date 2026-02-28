@@ -1,17 +1,23 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PiedWeb\Splates\Template;
 
-use Exception;
+use RuntimeException;
 use Override;
 use PiedWeb\Splates\Engine;
-use ReflectionClass;
+use PiedWeb\Splates\Template\Value\Text;
 use ReflectionMethod;
 use ReflectionNamedType;
-use ReflectionProperty;
 
 /**
- * Container which holds template data and provides access to template functions.
+ * Handles rendering of class-based templates.
+ *
+ * This class:
+ * 1. Creates the TemplateFetch and TemplateEscape helpers
+ * 2. Injects all #[Inject] properties (framework helpers + globals)
+ * 3. Calls __invoke() on the template
  */
 class TemplateClass extends Template
 {
@@ -19,128 +25,158 @@ class TemplateClass extends Template
 
     protected TemplateEscape $templateEscape;
 
+    /**
+     * Cache for __invoke() method parameter analysis.
+     *
+     * @var array<class-string, list<string>>
+     */
+    private static array $invokeParamsCache = [];
+
     public function __construct(
         Engine $engine,
-        protected TemplateClassInterface $templateClass
+        protected TemplateClassInterface $templateClass,
     ) {
         $this->engine = $engine;
-        $name = $templateClass::class;
-
-        $this->data($this->engine->getData($name)); // needed for addData, too much magic, deprecate it ?!
 
         $this->templateFetch = new TemplateFetch($this->engine, $this);
         $this->templateEscape = new TemplateEscape($this);
-
     }
 
     #[Override]
     protected function display(): void
     {
-        $this->mergePropertyToData();
-        $this->autowireDataToTemplateClass();
+        // 1. Inject all #[Inject] properties (helpers + globals)
+        $this->injectProperties();
 
-        $vars = $this->getVarToAutowireDisplayMethod();
-        if (! method_exists($this->templateClass, 'display')) {
-            throw new Exception('A `display` method is missing in `'.$this->templateClass::class.'`');
-        }
-
-        $this->templateClass->display(...$vars);
+        // 2. Call display with parameter injection if needed
+        $this->callDisplay();
     }
 
-    protected function mergePropertyToData(): void
+    /**
+     * Inject all properties marked with #[Inject] attribute.
+     *
+     * - TemplateFetch/TemplateEscape types: inject per-template instances
+     * - Other types: look up from Engine globals by property name
+     */
+    private function injectProperties(): void
     {
-        $properties = (new ReflectionClass($this->templateClass))->getProperties(ReflectionProperty::IS_PUBLIC);
+        $resolver = $this->engine->getInjectResolver();
+        $className = $this->templateClass::class;
+        $bindings = $resolver->resolve($className);
+        $globals = $this->engine->getGlobals();
 
-        $dataToImport = [];
-        foreach ($properties as $property) {
-            if (! $property->isInitialized($this->templateClass)) { // $property->isReadOnly() &&
+        foreach ($bindings as $binding) {
+            $value = match ($binding->type) {
+                TemplateFetch::class => $this->templateFetch,
+                TemplateEscape::class => $this->templateEscape,
+                default => $this->resolveGlobalValue($binding, $globals),
+            };
+
+            if ($value === null) {
+                // Throw if a non-nullable #[Inject] property can't be resolved
+                if ($binding->type !== null) {
+                    $prop = $resolver->getReflectionProperty($className, $binding->propertyName);
+                    $type = $prop->getType();
+                    if ($type instanceof ReflectionNamedType && ! $type->allowsNull()) {
+                        throw new RuntimeException(
+                            \sprintf(
+                                'Cannot inject property "%s::$%s": no global "%s" registered. Use $engine->addGlobal(\'%s\', ...) or make the property nullable.',
+                                $className,
+                                $binding->propertyName,
+                                $binding->globalKey,
+                                $binding->globalKey,
+                            )
+                        );
+                    }
+                }
+
                 continue;
             }
 
-            $propertyValue = $property->getValue($this->templateClass);
-            if ($propertyValue === $property->getDefaultValue()) {
-                continue;
-            }
-
-            if ($propertyValue === null) {
-                continue;
-            }
-
-            $dataToImport[$property->getName()] = $propertyValue;
+            $resolver->getReflectionProperty($className, $binding->propertyName)
+                ->setValue($this->templateClass, $value);
         }
-
-        if ($dataToImport !== []) {
-            $this->data($dataToImport);
-        }
-
     }
 
-    /** @return array<string, mixed> */
-    protected function getVarToAutowireDisplayMethod(): array
+    /**
+     * Resolve a value from Engine globals.
+     *
+     * @param array<string, mixed> $globals
+     */
+    private function resolveGlobalValue(InjectBinding $binding, array $globals): mixed
     {
-        $displayReflection = new ReflectionMethod($this->templateClass, 'display');
-
-        $parameters = $displayReflection->getParameters();
-
-        // Extract the parameter names
-        $parametersToAutowire = [];
-        foreach ($parameters as $parameter) {
-
-            if ($parameter->getType() instanceof ReflectionNamedType // avoid union or intersection type
-                && in_array($parameter->getType()->getName(), [TemplateClass::class, Template::class], true)) {
-                $parametersToAutowire[$parameter->getName()] = $this;
-
-                continue;
-            }
-
-            if ($parameter->getName() === 'f') {
-                $fetch = $this->templateFetch;
-                $parametersToAutowire['f'] = $fetch; //$fetch(...);
-
-                continue;
-            }
-
-
-            if ($parameter->getName() === 'e') {
-                $escape = $this->templateEscape;
-                $parametersToAutowire['e'] = $escape; //(...);
-
-                continue;
-            }
-
-            $parametersToAutowire[$parameter->getName()] = $this->data()[$parameter->getName()]
-                ?? ($parameter->isDefaultValueAvailable() ? $parameter->getDefaultValue() : null);
+        if (! isset($globals[$binding->globalKey])) {
+            return null;
         }
 
-        return $parametersToAutowire;
+        $value = $globals[$binding->globalKey];
 
+        if ($binding->escape && \is_string($value)) {
+            return new Text($value);
+        }
+
+        return $value;
     }
 
-    protected function autowireDataToTemplateClass(): void
+    /**
+     * Cache for ReflectionMethod objects for __invoke.
+     *
+     * @var array<class-string, ReflectionMethod>
+     */
+    private static array $invokeMethodCache = [];
+
+    /**
+     * Call __invoke() with parameter injection if the method expects parameters.
+     */
+    private function callDisplay(): void
     {
-        $properties = (new ReflectionClass($this->templateClass))->getProperties();
+        $className = $this->templateClass::class;
 
-        foreach ($properties as $property) {
-            if ($property->isInitialized($this->templateClass)) {
-                continue;
-            }
-
-            if ($property->getName() === 'template' && property_exists($this->templateClass, 'template')) {
-                /**  @disregard P1014 */
-                $this->templateClass->template = $this;
-
-                continue;
-            }
-
-            if (isset($this->data[$property->getName()])) {
-                $this->templateClass->{$property->getName()} = $this->data[$property->getName()];
-            }
+        if (! isset(self::$invokeParamsCache[$className])) {
+            $this->buildInvokeCache($className);
         }
+
+        $paramTypes = self::$invokeParamsCache[$className];
+
+        if ($paramTypes === []) {
+            self::$invokeMethodCache[$className]->invoke($this->templateClass);
+
+            return;
+        }
+
+        // Build arguments based on parameter types
+        $args = [];
+        foreach ($paramTypes as $typeName) {
+            $args[] = match ($typeName) {
+                TemplateFetch::class => $this->templateFetch,
+                TemplateEscape::class => $this->templateEscape,
+                default => null,
+            };
+        }
+
+        self::$invokeMethodCache[$className]->invoke($this->templateClass, ...$args);
     }
 
-    /** Disable useless public/protected parent method and property */
+    /**
+     * Build cache for __invoke() method reflection.
+     *
+     * @param class-string $className
+     */
+    private function buildInvokeCache(string $className): void
+    {
+        $reflection = new ReflectionMethod($className, '__invoke');
+        self::$invokeMethodCache[$className] = $reflection;
 
-    //private mixed $name;
+        $params = [];
+        foreach ($reflection->getParameters() as $param) {
+            $type = $param->getType();
+            if ($type instanceof ReflectionNamedType) {
+                $params[] = $type->getName();
+            }
+        }
+
+        self::$invokeParamsCache[$className] = $params;
+    }
 
     #[Override]
     public function exists(): bool

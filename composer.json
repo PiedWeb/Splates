@@ -23,9 +23,7 @@
     "phpstan/phpstan": "^2.1"
   },
   "require-dev": {
-    "mikey179/vfsstream": "^1.6",
-    "phpunit/phpunit": "^9.5",
-    "rector/rector": "^2",
+    "phpunit/phpunit": "^13",
     "friendsofphp/php-cs-fixer": "^3.65"
   },
   "autoload": {
@@ -41,12 +39,11 @@
   },
   "extra": {
     "branch-alias": {
-      "dev-master": "3.0-dev"
+      "dev-master": "4.0-dev"
     }
   },
   "scripts": {
     "stan": "vendor/bin/phpstan analyze src",
-    "rector": "vendor/bin/rector process",
     "format": "vendor/bin/php-cs-fixer fix",
     "test": "phpunit --testdox --colors=always",
     "docs": "hugo -s doc server"

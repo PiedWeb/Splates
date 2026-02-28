@@ -1,6 +1,6 @@
 ## Project Overview
 
-**Splates** is a PHP 8.3+ native template engine, forked from `league/plates`. It provides PHPStan support and IDE code completion for PHP templates without requiring compiled template languages.
+**Splates** is a PHP 8.4+ native template engine, forked from `league/plates`. It provides PHPStan support and IDE code completion for PHP templates without requiring compiled template languages.
 
 - **Repository**: https://github.com/piedweb/splates
 - **Namespace**: `PiedWeb\Splates`
@@ -11,7 +11,6 @@
 - PHP 8.4+
 - PHPStan (max level)
 - PHPUnit
-- Rector for code modernization
 - PHP-CS-Fixer for formatting
 
 ## Directory Structure
@@ -19,18 +18,17 @@
 ```
 src/                          # Main source code
 ├── Engine.php               # Core API entry point
-├── RectorizeTemplate.php    # Rector rule for auto-constructor generation
-├── Exception/               # Custom exceptions
-├── Extension/               # Extension system (Asset, URI)
 └── Template/                # Template rendering core
-    ├── Template.php         # String-based templates
+    ├── Template.php         # File-based templates
     ├── TemplateClass.php    # Class-based typed templates
-    └── ...                  # Data, Folders, Functions, Theme, etc.
+    ├── TemplateAbstract.php # Base class for template classes
+    ├── TemplateFile.php     # File-based template rendering
+    ├── InjectResolver.php   # Reflection-based #[Inject] resolution
+    ├── Attribute/           # #[TemplateData], #[Inject]
+    └── Value/               # Text, Html, Attr, Js, Slot
 
 tests/                        # PHPUnit test suite
-example/                      # Traditional template examples
 exampleTemplateClass/         # Class-based template examples
-doc/                          # Hugo documentation
 ```
 
 ## Code Standards
@@ -49,7 +47,6 @@ doc/                          # Hugo documentation
 
 ### What NOT to Do
 
-- No union types in `display()` method signatures (breaks autowiring)
 - No dynamic property access without `@property` PHPDoc
 - No suppressed PHPStan errors (`@phpstan-ignore`)
 - No `@var` type overrides - fix the actual types instead
@@ -61,28 +58,35 @@ doc/                          # Hugo documentation
 Main entry point. Creates and renders templates.
 
 ```php
-$engine = new Engine('/templates');
-$engine->render('profile', ['name' => 'John']);
+$engine = new Engine();
+$engine->addGlobal('ext', $templateExtension);
+echo $engine->render(new ProfileTpl(name: 'John'));
 ```
 
 ### Template Modes
 
-1. **String-based** (`Template.php`): Traditional `<?php ?>` templates
-2. **Class-based** (`TemplateClass.php`): Typed templates with autowired parameters
+1. **Class-based** (`TemplateClass.php`): Typed templates extending `TemplateAbstract` with `#[TemplateData]` constructor params
+2. **File-based** (`TemplateFile.php`): Traditional `.php` templates via `$engine->render('template.php', ['key' => 'val'])`
 
 ### Class-based Template Pattern
 
 ```php
-class Profile implements TemplateClassInterface {
-    public function display(string $name, int $age): void {
-        // Template logic with full IDE support
-    }
+class Profile extends TemplateAbstract {
+    public function __construct(
+        #[TemplateData] public string $name,
+    ) {}
+
+    public function __invoke(): void { ?>
+<h1><?= $this->e($this->name) ?></h1>
+    <?php }
 }
 ```
 
-### Extension System
+### Injection System
 
-Extensions implement `ExtensionInterface` and register functions via `Engine::loadExtension()`.
+- `#[TemplateData]` on constructor params for IDE autocompletion
+- `#[Inject]` on properties for engine globals injection
+- `InjectResolver` handles reflection-based resolution with caching
 
 ## Development Commands
 
@@ -90,50 +94,27 @@ Extensions implement `ExtensionInterface` and register functions via `Engine::lo
 composer test      # Run PHPUnit tests
 composer stan      # Run PHPStan analysis
 composer format    # Fix code style
-composer rector    # Apply code modernization
 ```
 
 ## Testing Guidelines
 
-- Use `vfsStream` for filesystem tests (see existing tests)
-- Test both string-based and class-based template modes
-- Cover edge cases: missing templates, invalid data types, theme fallbacks
-- Rector rules have fixture-based tests in `tests/RectorizeTemplate/Fixture/`
-
-## Common Tasks
-
-### Adding a New Extension
-
-1. Create class in `src/Extension/` implementing `ExtensionInterface`
-2. Implement `register(Engine $engine): void`
-3. Add tests in `tests/Extension/`
-4. Register via `$engine->loadExtension(new MyExtension())`
-
-### Modifying Template Rendering
-
-- String templates: Edit `src/Template/Template.php`
-- Class templates: Edit `src/Template/TemplateClass.php`
-- Path resolution: See `src/Template/ResolveTemplatePath/`
-
-### Adding Engine Features
-
-1. Add method to `src/Engine.php`
-2. Return `$this` for fluent API consistency
-3. Add corresponding test in `tests/EngineTest.php`
+- Test both file-based and class-based template modes
+- Cover edge cases: missing templates, invalid data types
+- Value objects have dedicated tests in `tests/Template/ValueObjectsTest.php`
 
 ## Important Files
 
 | File                             | Purpose                                             |
 | -------------------------------- | --------------------------------------------------- |
 | `src/Engine.php`                 | Main API, start here for understanding the system   |
-| `src/Template/TemplateClass.php` | Class-based template magic (reflection, autowiring) |
-| `src/RectorizeTemplate.php`      | Auto-generates constructors for template classes    |
+| `src/Template/TemplateClass.php` | Class-based template rendering (reflection, autowiring) |
+| `src/Template/TemplateAbstract.php` | Base class with render(), capture(), slot(), e() helpers |
+| `src/Template/InjectResolver.php` | Reflection-based injection with caching |
 | `phpstan.neon.dist`              | Static analysis configuration                       |
-| `rector.php`                     | Code modernization rules                            |
 
 ## Architecture Notes
 
-- Templates are resolved via `ResolveTemplatePath` strategy pattern
-- Data flows: Engine → Data → Template (merged at render time)
-- Functions are wrapped in `Func` objects with callback management
-- Theme support uses hierarchical fallback resolution
+- Class templates use `#[TemplateData]` constructor params and `#[Inject]` properties
+- Layouts use the slots pattern: pass `Closure` properties instead of sections
+- Value objects (`Text`, `Html`, `Attr`, `Js`, `Slot`) provide context-aware escaping
+- `InjectResolver` caches reflection data for performance
