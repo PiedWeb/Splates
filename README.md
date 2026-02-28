@@ -13,7 +13,7 @@ A native PHP template engine with full IDE autocompletion and PHPStan support. F
 - **No magic** - No string-based template names, no runtime errors from typos
 - **Slots pattern** - Layouts are just components with `Closure` properties (no magic sections)
 - **Value objects** - `Text`, `Html`, `Attr`, `Js` for context-aware escaping
-- **Global services** - Inject dependencies via `Engine::addGlobal()` with `#[TemplateData(global: true)]`
+- **Global services** - Inject dependencies via `Engine::addGlobal()` with `#[Inject]`
 
 ## Installation
 
@@ -369,13 +369,15 @@ $engine->addGlobal('router', $router);
 ### Usage in Templates
 
 ```php
+use PiedWeb\Splates\Template\Attribute\Inject;
+
 class MyTemplate extends TemplateAbstract
 {
     // Auto-injected from globals
-    #[TemplateData(global: true)]
+    #[Inject]
     public TemplateExtension $ext;
 
-    #[TemplateData(global: true)]
+    #[Inject]
     public RouterInterface $router;
 
     public function __construct(
@@ -408,7 +410,7 @@ use PiedWeb\Splates\Template\TemplateAbstract;
 abstract class AppTemplate extends TemplateAbstract
 {
     // Auto-injected to ALL templates
-    #[TemplateData(global: true)]
+    #[Inject]
     public TemplateExtension $ext;
 
     // Convenience helpers
@@ -479,7 +481,7 @@ For production, enable reflection caching:
 $engine = new Engine(cacheDir: '/path/to/cache');
 
 // Warm cache on deploy
-$engine->getTemplateDataResolver()->warmCache([
+$engine->getInjectResolver()->warmCache([
     ProfileTpl::class,
     LayoutTpl::class,
     // ... all template classes
@@ -513,7 +515,7 @@ v4 is a full rewrite. The extension system, folder/theme system, function regist
 | `$engine->render('profile', ['name' => 'John'])` | `$engine->render(new ProfileTpl(name: 'John'))` |
 | `$engine->addData(['key' => 'val'])` | `$engine->addGlobal('key', $val)` |
 | `$engine->registerFunction('upper', ...)` | Removed - use plain PHP |
-| `$engine->loadExtension(new Asset(...))` | Removed - use `#[TemplateData(global: true)]` |
+| `$engine->loadExtension(new Asset(...))` | Removed - use `#[Inject]` |
 | `$engine->addFolder('emails', '/path')` | Removed - use PSR-4 namespaces |
 | `$engine->setFileExtension('tpl')` | Removed - always `.php` |
 | `Engine::fromTheme(...)` | Removed |
@@ -534,7 +536,7 @@ v4 is a full rewrite. The extension system, folder/theme system, function regist
 | `$t->section('content')` | `($this->content)()` in layout |
 | `$t->section('nav', $default)` | `$this->nav ? ($this->nav)() : $default` |
 | Constructor props (no attribute) | Constructor props with `#[TemplateData]` |
-| `public TemplateExtension $ext` (autowired via data) | `#[TemplateData(global: true)] public TemplateExtension $ext` |
+| `public TemplateExtension $ext` (autowired via data) | `#[Inject] public TemplateExtension $ext` |
 
 #### Removed Classes
 
@@ -549,12 +551,12 @@ v4 is a full rewrite. The extension system, folder/theme system, function regist
 #### New Classes
 
 - `PiedWeb\Splates\Template\TemplateAbstract` - base class with `render()`, `capture()`, `slot()`, `e()` helpers
-- `PiedWeb\Splates\Template\TemplateDataResolver` - reflection-based global injection with caching
-- `PiedWeb\Splates\Template\Attribute\TemplateData` - marks constructor props and global properties
-- `PiedWeb\Splates\Template\Attribute\Inject` - injects `TemplateFetch`/`TemplateEscape` into properties
+- `PiedWeb\Splates\Template\InjectResolver` - reflection-based injection with caching
+- `PiedWeb\Splates\Template\Attribute\TemplateData` - marks constructor parameters for IDE autocompletion
+- `PiedWeb\Splates\Template\Attribute\Inject` - injects `TemplateFetch`/`TemplateEscape` and Engine globals into properties
 - `PiedWeb\Splates\Template\Value\Text`, `Html`, `Attr`, `Js`, `Slot` - context-aware escaping value objects
 - `PiedWeb\Splates\Template\TemplateFile` - file-based templates (new)
-- `PiedWeb\Splates\Template\PropertyBinding` - internal binding mechanism
+- `PiedWeb\Splates\Template\InjectBinding` - internal binding mechanism
 
 ### Step-by-Step Migration
 
@@ -585,7 +587,7 @@ $engine = new Engine();
 $engine->addGlobal('ext', $templateExtension);  // Replaces extension system AND data injection
 $engine->addGlobal('siteName', 'My App');
 
-// No subclass needed - globals are auto-injected via #[TemplateData(global: true)]
+// No subclass needed - globals are auto-injected via #[Inject]
 ```
 
 #### Step 2: Run Rector (Partial Automation)
@@ -627,7 +629,7 @@ vendor/bin/rector process
 3. **Does not handle `$t->fetch(new Tpl())`** - Only handles `$f(...)`, not `$t->fetch(...)`
 4. **Does not convert sections to slots** - `$t->start('content')` / `$t->stop()` / `$t->section('content')` need full manual rewrite (see Step 4)
 5. **Does not handle `$ext->method()` calls** - Extension references stay as-is but need `$this->ext->` prefix
-6. **Does not add `#[TemplateData(global: true)]`** - Global properties must be annotated manually
+6. **Does not add `#[Inject]`** - Global properties must be annotated manually
 
 #### Step 3: Fix Variable References and Imports
 
@@ -797,13 +799,13 @@ class MyEngine extends Engine
 }
 ```
 
-**v4 pattern** - `#[TemplateData(global: true)]` + `Engine::addGlobal()`:
+**v4 pattern** - `#[Inject]` + `Engine::addGlobal()`:
 
 ```php
 // AppTemplate.php (optional base class)
 abstract class AppTemplate extends TemplateAbstract
 {
-    #[TemplateData(global: true)]
+    #[Inject]
     public TemplateExtension $ext;
 }
 
@@ -812,7 +814,7 @@ $engine = new Engine();
 $engine->addGlobal('ext', $templateExtension);
 ```
 
-The global name (`'ext'`) must match the property name (`$ext`). The engine auto-injects it into any template that declares a `#[TemplateData(global: true)]` property with that name.
+The global name (`'ext'`) must match the property name (`$ext`). The engine auto-injects it into any template that declares an `#[Inject]` property with that name.
 
 #### Step 6: Delete Old Infrastructure
 

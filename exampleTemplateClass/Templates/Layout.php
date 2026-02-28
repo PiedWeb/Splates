@@ -3,18 +3,19 @@
 namespace Templates;
 
 use Closure;
+use PiedWeb\Splates\Template\Attribute\Inject;
 use PiedWeb\Splates\Template\Attribute\TemplateData;
 use PiedWeb\Splates\Template\TemplateAbstract;
 
 /**
  * Main layout component demonstrating:
- * - Global service injection via #[TemplateData(global: true)]
+ * - Global service injection via #[Inject]
  * - Required and optional Closure slots
  * - Clean HTML structure with conditional rendering
  */
 class Layout extends TemplateAbstract
 {
-    #[TemplateData(global: true)]
+    #[Inject]
     public AppService $app;
 
     public function __construct(

@@ -16,8 +16,8 @@ use PiedWeb\Splates\Template\Attribute\Inject;
  * ```php
  * class ProfileTpl extends TemplateAbstract
  * {
- *     #[TemplateData(global: true)]
- *     public MyService $service;  // Auto-injected
+ *     #[Inject]
+ *     public MyService $service;  // Auto-injected from Engine globals
  *
  *     public function __construct(
  *         #[TemplateData]

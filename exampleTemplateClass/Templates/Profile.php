@@ -2,19 +2,20 @@
 
 namespace Templates;
 
+use PiedWeb\Splates\Template\Attribute\Inject;
 use PiedWeb\Splates\Template\Attribute\TemplateData;
 use PiedWeb\Splates\Template\TemplateAbstract;
 
 /**
  * User profile page demonstrating:
  * - Object data binding with #[TemplateData]
- * - Global service injection
+ * - Global service injection via #[Inject]
  * - Heredoc syntax for better IDE highlighting
  * - Component composition with Card
  */
 class Profile extends TemplateAbstract
 {
-    #[TemplateData(global: true)]
+    #[Inject]
     public AppService $app;
 
     public function __construct(

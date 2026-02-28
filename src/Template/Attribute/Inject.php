@@ -12,20 +12,18 @@ use Attribute;
  * Supported types:
  * - TemplateFetch: For rendering child templates
  * - TemplateEscape: For escaping values
+ * - Any other type: Looked up from Engine globals by property name
  *
  * Example:
  * ```php
- * class Profile implements TemplateClassInterface
+ * class Profile extends TemplateAbstract
  * {
  *     #[Inject]
- *     protected TemplateFetch $f;
+ *     public AppService $app;  // Auto-injected from Engine globals
  *
- *     #[Inject]
- *     protected TemplateEscape $e;
- *
- *     public function display(): void
+ *     public function __invoke(): void
  *     {
- *         echo ($this->e)($this->name);
+ *         echo $this->e($this->app->getName());
  *     }
  * }
  * ```
@@ -33,4 +31,12 @@ use Attribute;
 #[Attribute(Attribute::TARGET_PROPERTY)]
 final class Inject
 {
+    public function __construct(
+        /**
+         * Auto-escape scalar values by wrapping them in Text.
+         * Only applies to string values - objects are passed as-is.
+         */
+        public readonly bool $escape = false,
+    ) {
+    }
 }

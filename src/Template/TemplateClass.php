@@ -6,9 +6,7 @@ namespace PiedWeb\Splates\Template;
 
 use Override;
 use PiedWeb\Splates\Engine;
-use PiedWeb\Splates\Template\Attribute\Inject;
 use PiedWeb\Splates\Template\Value\Text;
-use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
 
@@ -17,9 +15,8 @@ use ReflectionNamedType;
  *
  * This class:
  * 1. Creates the TemplateFetch and TemplateEscape helpers
- * 2. Injects helpers via #[Inject] properties or __invoke() parameters
- * 3. Injects global properties (from Engine::addGlobal)
- * 4. Calls __invoke() on the template
+ * 2. Injects all #[Inject] properties (framework helpers + globals)
+ * 3. Calls __invoke() on the template
  */
 class TemplateClass extends Template
 {
@@ -33,13 +30,6 @@ class TemplateClass extends Template
      * @var array<class-string, list<string>>
      */
     private static array $invokeParamsCache = [];
-
-    /**
-     * Cache for #[Inject] property analysis.
-     *
-     * @var array<class-string, array<string, string>>
-     */
-    private static array $injectPropsCache = [];
 
     public function __construct(
         Engine $engine,
@@ -57,73 +47,60 @@ class TemplateClass extends Template
     #[Override]
     protected function display(): void
     {
-        // 1. Inject #[Inject] properties
-        $this->injectHelperProperties();
+        // 1. Inject all #[Inject] properties (helpers + globals)
+        $this->injectProperties();
 
-        // 2. Inject global properties
-        $this->injectGlobalProperties();
-
-        // 3. Call display with parameter injection if needed
+        // 2. Call display with parameter injection if needed
         $this->callDisplay();
     }
 
     /**
-     * Cache for ReflectionProperty objects.
+     * Inject all properties marked with #[Inject] attribute.
      *
-     * @var array<class-string, array<string, \ReflectionProperty>>
+     * - TemplateFetch/TemplateEscape types: inject per-template instances
+     * - Other types: look up from Engine globals by property name
      */
-    private static array $injectReflectionCache = [];
-
-    /**
-     * Inject properties marked with #[Inject] attribute.
-     */
-    private function injectHelperProperties(): void
+    private function injectProperties(): void
     {
+        $resolver = $this->engine->getInjectResolver();
         $className = $this->templateClass::class;
+        $bindings = $resolver->resolve($className);
+        $globals = $this->engine->getGlobals();
 
-        if (! isset(self::$injectPropsCache[$className])) {
-            $this->buildInjectCache($className);
-        }
-
-        foreach (self::$injectPropsCache[$className] as $propertyName => $typeName) {
-            $value = match ($typeName) {
+        foreach ($bindings as $binding) {
+            $value = match ($binding->type) {
                 TemplateFetch::class => $this->templateFetch,
                 TemplateEscape::class => $this->templateEscape,
-                default => null,
+                default => $this->resolveGlobalValue($binding, $globals),
             };
 
-            if ($value !== null) {
-                self::$injectReflectionCache[$className][$propertyName]->setValue($this->templateClass, $value);
+            if ($value === null) {
+                continue;
             }
+
+            $resolver->getReflectionProperty($className, $binding->propertyName)
+                ->setValue($this->templateClass, $value);
         }
     }
 
     /**
-     * Build cache for #[Inject] properties including reflection objects.
+     * Resolve a value from Engine globals.
      *
-     * @param class-string $className
+     * @param array<string, mixed> $globals
      */
-    private function buildInjectCache(string $className): void
+    private function resolveGlobalValue(InjectBinding $binding, array $globals): mixed
     {
-        $reflection = new ReflectionClass($className);
-        self::$injectPropsCache[$className] = [];
-        self::$injectReflectionCache[$className] = [];
-
-        foreach ($reflection->getProperties() as $property) {
-            $attrs = $property->getAttributes(Inject::class);
-            if ($attrs === []) {
-                continue;
-            }
-
-            $type = $property->getType();
-            if (! $type instanceof ReflectionNamedType) {
-                continue;
-            }
-
-            $propertyName = $property->getName();
-            self::$injectPropsCache[$className][$propertyName] = $type->getName();
-            self::$injectReflectionCache[$className][$propertyName] = $property;
+        if (! isset($globals[$binding->globalKey])) {
+            return null;
         }
+
+        $value = $globals[$binding->globalKey];
+
+        if ($binding->escape && \is_string($value)) {
+            return new Text($value);
+        }
+
+        return $value;
     }
 
     /**
@@ -184,32 +161,6 @@ class TemplateClass extends Template
         }
 
         self::$invokeParamsCache[$className] = $params;
-    }
-
-    /**
-     * Inject properties marked with #[TemplateData(global: true)] from Engine globals.
-     */
-    private function injectGlobalProperties(): void
-    {
-        $resolver = $this->engine->getTemplateDataResolver();
-        $bindings = $resolver->resolve($this->templateClass::class);
-        $globals = $this->engine->getGlobals();
-
-        foreach ($bindings as $binding) {
-            if (! isset($globals[$binding->globalKey])) {
-                // Global not set - skip (property might have a default)
-                continue;
-            }
-
-            $value = $globals[$binding->globalKey];
-
-            // Auto-escape if configured
-            if ($binding->escape && \is_string($value)) {
-                $value = new Text($value);
-            }
-
-            $this->templateClass->{$binding->propertyName} = $value;
-        }
     }
 
     #[Override]

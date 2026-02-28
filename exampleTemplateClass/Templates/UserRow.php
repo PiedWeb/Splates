@@ -2,6 +2,7 @@
 
 namespace Templates;
 
+use PiedWeb\Splates\Template\Attribute\Inject;
 use PiedWeb\Splates\Template\Attribute\TemplateData;
 use PiedWeb\Splates\Template\TemplateAbstract;
 
@@ -11,7 +12,7 @@ use PiedWeb\Splates\Template\TemplateAbstract;
  */
 class UserRow extends TemplateAbstract
 {
-    #[TemplateData(global: true)]
+    #[Inject]
     public AppService $app;
 
     public function __construct(

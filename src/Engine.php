@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace PiedWeb\Splates;
 
+use PiedWeb\Splates\Template\InjectResolver;
 use PiedWeb\Splates\Template\Template;
 use PiedWeb\Splates\Template\TemplateClass;
 use PiedWeb\Splates\Template\TemplateClassInterface;
-use PiedWeb\Splates\Template\TemplateDataResolver;
 use PiedWeb\Splates\Template\TemplateFile;
 
 /**
@@ -32,9 +32,9 @@ class Engine
     private array $globals = [];
 
     /**
-     * Template data resolver with caching.
+     * Inject resolver with caching.
      */
-    private TemplateDataResolver $templateDataResolver;
+    private InjectResolver $injectResolver;
 
     /**
      * Template directory for file-based templates.
@@ -50,17 +50,17 @@ class Engine
     public function __construct(?string $templateDir = null, ?string $cacheDir = null)
     {
         $this->templateDir = $templateDir ?? $this->detectProjectRoot();
-        $this->templateDataResolver = new TemplateDataResolver($cacheDir);
+        $this->injectResolver = new InjectResolver($cacheDir);
     }
 
     /**
      * Add a global service or value available to all templates.
      *
-     * Use with #[TemplateData(global: true)] on properties:
+     * Use with #[Inject] on properties:
      * ```php
      * class ProfileTpl extends TemplateAbstract
      * {
-     *     #[TemplateData(global: true)]
+     *     #[Inject]
      *     public TemplateExtension $ext;  // Auto-injected
      * }
      * ```
@@ -91,11 +91,11 @@ class Engine
     }
 
     /**
-     * Get the template data resolver.
+     * Get the inject resolver.
      */
-    public function getTemplateDataResolver(): TemplateDataResolver
+    public function getInjectResolver(): InjectResolver
     {
-        return $this->templateDataResolver;
+        return $this->injectResolver;
     }
 
     /**
@@ -155,7 +155,7 @@ class Engine
      */
     public function clearCache(): void
     {
-        $this->templateDataResolver->clearCache();
+        $this->injectResolver->clearCache();
     }
 
     /**

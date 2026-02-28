@@ -4,26 +4,33 @@ declare(strict_types=1);
 
 namespace PiedWeb\Splates\Template;
 
-use PiedWeb\Splates\Template\Attribute\TemplateData;
+use PiedWeb\Splates\Template\Attribute\Inject;
 use ReflectionClass;
 use ReflectionProperty;
 
 /**
- * Resolves #[TemplateData(global: true)] properties from template classes.
+ * Resolves #[Inject] properties from template classes.
  *
  * Uses multi-level caching:
  * 1. Memory cache (fastest, per-request)
  * 2. File cache (production, cross-request)
  * 3. Reflection (development, cache miss)
  */
-final class TemplateDataResolver
+final class InjectResolver
 {
     /**
      * Memory cache for resolved bindings.
      *
-     * @var array<class-string, list<PropertyBinding>>
+     * @var array<class-string, list<InjectBinding>>
      */
     private static array $cache = [];
+
+    /**
+     * Cache for ReflectionProperty objects (needed for setting protected properties).
+     *
+     * @var array<class-string, array<string, ReflectionProperty>>
+     */
+    private static array $reflectionCache = [];
 
     public function __construct(
         /**
@@ -35,11 +42,11 @@ final class TemplateDataResolver
     }
 
     /**
-     * Resolve all global property bindings for a template class.
+     * Resolve all #[Inject] property bindings for a template class.
      *
      * @param class-string<TemplateClassInterface> $className
      *
-     * @return list<PropertyBinding>
+     * @return list<InjectBinding>
      */
     public function resolve(string $className): array
     {
@@ -55,7 +62,11 @@ final class TemplateDataResolver
                 /** @var array<int, array{propertyName: string, globalKey: string, escape: bool, type: ?string}> $bindings */
                 $bindings = require $cacheFile;
 
-                return self::$cache[$className] = $this->hydrateBindings($bindings);
+                self::$cache[$className] = $this->hydrateBindings($bindings);
+                // Rebuild reflection cache for these bindings
+                $this->buildReflectionCache($className, self::$cache[$className]);
+
+                return self::$cache[$className];
             }
         }
 
@@ -71,11 +82,22 @@ final class TemplateDataResolver
     }
 
     /**
+     * Get the cached ReflectionProperty for setting a property value.
+     *
+     * @param class-string $className
+     */
+    public function getReflectionProperty(string $className, string $propertyName): ReflectionProperty
+    {
+        return self::$reflectionCache[$className][$propertyName];
+    }
+
+    /**
      * Clear all caches.
      */
     public function clearCache(): void
     {
         self::$cache = [];
+        self::$reflectionCache = [];
 
         if ($this->cacheDir !== null && is_dir($this->cacheDir)) {
             $files = glob($this->cacheDir . '/splates_*.php');
@@ -102,32 +124,31 @@ final class TemplateDataResolver
     /**
      * @param class-string $className
      *
-     * @return list<PropertyBinding>
+     * @return list<InjectBinding>
      */
     private function reflectClass(string $className): array
     {
         $reflection = new ReflectionClass($className);
         $bindings = [];
+        self::$reflectionCache[$className] = [];
 
-        foreach ($reflection->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
-            $attrs = $property->getAttributes(TemplateData::class);
+        foreach ($reflection->getProperties() as $property) {
+            $attrs = $property->getAttributes(Inject::class);
             if ($attrs === []) {
                 continue;
             }
 
             $attr = $attrs[0]->newInstance();
 
-            // Only process global properties - constructor params don't need binding
-            if (! $attr->global) {
-                continue;
-            }
-
             $type = $property->getType();
             $typeName = $type instanceof \ReflectionNamedType ? $type->getName() : null;
 
-            $bindings[] = new PropertyBinding(
-                propertyName: $property->getName(),
-                globalKey: $property->getName(),
+            $propertyName = $property->getName();
+            self::$reflectionCache[$className][$propertyName] = $property;
+
+            $bindings[] = new InjectBinding(
+                propertyName: $propertyName,
+                globalKey: $propertyName,
                 escape: $attr->escape,
                 type: $typeName,
             );
@@ -136,13 +157,33 @@ final class TemplateDataResolver
         return $bindings;
     }
 
+    /**
+     * Build reflection cache for bindings loaded from file cache.
+     *
+     * @param class-string $className
+     * @param list<InjectBinding> $bindings
+     */
+    private function buildReflectionCache(string $className, array $bindings): void
+    {
+        if (isset(self::$reflectionCache[$className])) {
+            return;
+        }
+
+        $reflection = new ReflectionClass($className);
+        self::$reflectionCache[$className] = [];
+
+        foreach ($bindings as $binding) {
+            self::$reflectionCache[$className][$binding->propertyName] = $reflection->getProperty($binding->propertyName);
+        }
+    }
+
     private function getCacheFile(string $className): string
     {
         return $this->cacheDir . '/splates_' . md5($className) . '.php';
     }
 
     /**
-     * @param list<PropertyBinding> $bindings
+     * @param list<InjectBinding> $bindings
      */
     private function writeCache(string $className, array $bindings): void
     {
@@ -169,17 +210,17 @@ final class TemplateDataResolver
     }
 
     /**
-     * Hydrate PropertyBinding objects from cached array data.
+     * Hydrate InjectBinding objects from cached array data.
      *
      * @param array<int, array{propertyName: string, globalKey: string, escape: bool, type: ?string}> $data
      *
-     * @return list<PropertyBinding>
+     * @return list<InjectBinding>
      */
     private function hydrateBindings(array $data): array
     {
         $bindings = [];
         foreach ($data as $item) {
-            $bindings[] = new PropertyBinding(
+            $bindings[] = new InjectBinding(
                 propertyName: $item['propertyName'],
                 globalKey: $item['globalKey'],
                 escape: $item['escape'],

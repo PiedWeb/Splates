@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace PiedWeb\Splates\Template;
 
 /**
- * Represents a property that needs to be bound from Engine globals.
+ * Represents a property that needs to be injected via #[Inject].
  *
- * Only properties with #[TemplateData(global: true)] create PropertyBindings.
- * Constructor parameters are handled by PHP's native constructor invocation.
+ * For TemplateFetch/TemplateEscape types, per-template instances are injected.
+ * For other types, values are looked up from Engine globals by property name.
  */
-final readonly class PropertyBinding
+final readonly class InjectBinding
 {
     public function __construct(
         /**

@@ -6,10 +6,11 @@ namespace PiedWeb\Splates\Tests;
 
 use PHPUnit\Framework\TestCase;
 use PiedWeb\Splates\Engine;
+use PiedWeb\Splates\Template\Attribute\Inject;
 use PiedWeb\Splates\Template\Attribute\TemplateData;
+use PiedWeb\Splates\Template\InjectResolver;
 use PiedWeb\Splates\Template\Template;
 use PiedWeb\Splates\Template\TemplateAbstract;
-use PiedWeb\Splates\Template\TemplateDataResolver;
 
 final class EngineTest extends TestCase
 {
@@ -85,11 +86,11 @@ final class EngineTest extends TestCase
         $this->assertNull($this->engine->getGlobal('nonexistent'));
     }
 
-    public function testGetTemplateDataResolver(): void
+    public function testGetInjectResolver(): void
     {
-        $resolver = $this->engine->getTemplateDataResolver();
+        $resolver = $this->engine->getInjectResolver();
 
-        $this->assertInstanceOf(TemplateDataResolver::class, $resolver);
+        $this->assertInstanceOf(InjectResolver::class, $resolver);
     }
 
     public function testMakeTemplate(): void
@@ -181,7 +182,7 @@ class SimpleTestTemplate extends TemplateAbstract
  */
 class GlobalServiceTestTemplate extends TemplateAbstract
 {
-    #[TemplateData(global: true)]
+    #[Inject]
     public TestService $service;
 
     public function __invoke(): void
